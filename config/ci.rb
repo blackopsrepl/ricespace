@@ -14,6 +14,11 @@ CI.run do
   # tested by the same `make check` as the site — which is the reason it is Ruby.
   step "Tests: CLI", "ruby -Icli/lib cli/test/ricespace_test.rb"
 
+  # The pictures the README shows. They are generated, so the script that generates them is
+  # part of the product, and the framework wrappers beside it are not: a syntax error in
+  # `bin/shots` is a README nobody can update, and RuboCop's own discovery does not reach it.
+  step "Lint: bin scripts", "bin/rubocop bin/shots"
+
   # Optional: Run system tests
   # step "Tests: System", "bin/rails test:system"
 

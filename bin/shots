@@ -1,0 +1,101 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+#
+# Draw the README's pictures from the running site.
+#
+# The images in docs/assets/screens are what somebody sees before deciding whether to run
+# this, and they go stale the moment the page changes: the last set was drawn before the page
+# grew walls and reactions, so the README was advertising a page that no longer exists. A
+# screenshot somebody has to remember to redo is a screenshot that will be wrong, so this is
+# how the pictures are made — one command, against the real site, no hand-cropping.
+#
+# It talks to the running server over HTTP rather than to Rails directly: the pictures have to
+# be of what the site actually serves, stylesheets and attachments included, and a renderer
+# that skipped the asset pipeline would produce a picture of a page nobody sees.
+#
+#   bin/shots            # against http://127.0.0.1:3010
+#   bin/shots URL        # against somewhere else
+#
+# Ruby, like the rest of the repository: the trimming is vips, which the app already uses for
+# images, rather than a second language and a second toolchain. Booting the app is what makes
+# that require resolvable — the bundler context is the environment's, not this file's.
+
+require_relative "../config/environment"
+require "fileutils"
+
+BASE = ARGV[0] || "http://127.0.0.1:3010"
+OUT = File.expand_path("../docs/assets/screens", __dir__)
+
+# Each picture: where to point, how wide, and the most of the page worth showing.
+#
+# The width is per subject because the page is responsive — the front page at 1440 is the whole
+# directory, while a page with its own CSS is only honest at a width its rules were written
+# for. Chromium renders to the height it is given and the empty tail is trimmed, so a short
+# page is not padded with background.
+SHOTS = [
+  { name: "home", path: "/", width: 1440, budget: 2400, max: 1150,
+    note: "the front page — the ranking and the directory" },
+  { name: "layouts", path: "/layouts", width: 1440, budget: 2000, max: 1150,
+    note: "the layouts you can wear" },
+  { name: "create-a-page", path: "/registration/new", width: 1100, budget: 1200, max: 700,
+    note: "picking a name, which is picking an address" },
+  { name: "profile", path: "/profiles/vittorio", width: 1280, budget: 4200, max: 2100,
+    note: "a page — contact table, rice, reactions, walls" },
+  { name: "wall", path: "/profiles/wes", width: 1280, budget: 4200, max: 2100,
+    note: "somebody else's page, signed out — reactions and walls" },
+  { name: "agents", path: "/agents", width: 1280, budget: 2000, max: 1150,
+    note: "the contract an agent is handed" }
+].freeze
+
+def chromium
+  @chromium ||= %w[chromium chromium-browser google-chrome]
+    .find { |bin| system("command -v #{bin} >/dev/null 2>&1") } ||
+    abort("no chromium on PATH — install one to redraw the screenshots")
+end
+
+def capture(shot)
+  file = File.join(OUT, "#{shot[:name]}.png")
+  ok = system(chromium, "--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars",
+    "--force-device-scale-factor=1", "--window-size=#{shot[:width]},#{shot[:budget]}",
+    "--screenshot=#{file}", "#{BASE}#{shot[:path]}", out: File::NULL, err: File::NULL)
+
+  unless ok && File.exist?(file)
+    warn "  #{shot[:name]}: FAILED — is #{BASE} serving?"
+    return false
+  end
+
+  trim(file, shot[:max])
+  image = Vips::Image.new_from_file(file)
+  puts format("  %-18s %4dx%-5d %s", "#{shot[:name]}.png", image.width, image.height, shot[:note])
+  true
+end
+
+# Cut the page down to its content plus a margin, and no further than `max` for the README's
+# sake. Rows are compared against the bottom row rather than a fixed colour, so this works on
+# a page whose background is not the one we assumed.
+def trim(path, max)
+  image = Vips::Image.new_from_file(path)
+  width = image.width
+  height = image.height
+  bottom = image.extract_area(0, height - 1, width, 1)
+
+  last = height - 1
+  (height - 1).downto(0) do |y|
+    row = image.extract_area(0, y, width, 1)
+    next if (row - bottom).abs.max.zero?
+
+    last = y
+    break
+  end
+
+  keep = [ [ last + 40, max ].min, 200 ].max
+  image.extract_area(0, 0, width, keep).write_to_file(path)
+end
+
+FileUtils.mkdir_p(OUT)
+puts "shots: #{SHOTS.size} pictures of #{BASE}"
+failed = SHOTS.reject { |shot| capture(shot) }
+puts(failed.empty? ? "shots: all #{SHOTS.size} written to docs/assets/screens/" :
+  "shots: #{failed.size} FAILED — #{failed.map { |s| s[:name] }.join(", ")}")
+exit(failed.empty? ? 0 : 1)
