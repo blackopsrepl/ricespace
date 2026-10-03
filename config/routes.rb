@@ -21,7 +21,22 @@ Rails.application.routes.draw do
   resource :registration, only: [ :new, :create ]
   resource :session, only: [ :new, :create, :destroy ]
   resource :studio, only: [ :show, :update ], controller: "studio"
+  resource :account, only: [ :update ], controller: "accounts"
   resources :agent_tokens, only: [ :create, :destroy ]
+  resources :friendships, only: [ :create, :destroy ]
+  resources :blurbs, only: [ :create, :update, :destroy ] do
+    member { patch :move }
+  end
+
+  # The picture is a singleton on the account, like the profile page itself.
+  patch "profile/picture", to: "profiles#update_picture", as: :profile_picture
+  delete "profile/picture", to: "profiles#destroy_picture"
+
+  # Comments are left on a page, so they are nested under the username a visitor
+  # is looking at; removal is by comment id, which the comment knows its page from.
+  post "profiles/:username/comments", to: "comments#create", as: :profile_comments
+  delete "comments/:id", to: "comments#destroy", as: :comment
+
   resources :profiles, only: [ :show ], param: :username
 
   root "pages#home"

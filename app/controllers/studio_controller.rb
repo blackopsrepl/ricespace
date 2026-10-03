@@ -10,6 +10,12 @@ class StudioController < ApplicationController
     @tokens = current_user.agent_tokens.recent_first
     @issued_token = flash[:agent_token]
     @conflicted = flash[:conflict]
+
+    # The page's bits, managed from here too: the studio is where an owner
+    # assembles the sections a layout will target.
+    @picture = current_user.profile_picture
+    @blurbs = current_user.blurbs.in_order
+    @friends = current_user.friends.order(:username)
   end
 
   def update
@@ -23,6 +29,9 @@ class StudioController < ApplicationController
     if expected && profile.version != expected
       @profile = profile.tap { |record| record.document = document }
       @tokens = current_user.agent_tokens.recent_first
+      @picture = current_user.profile_picture
+      @blurbs = current_user.blurbs.in_order
+      @friends = current_user.friends.order(:username)
       @conflicted = true
       return render :show, status: :conflict
     end
@@ -32,6 +41,9 @@ class StudioController < ApplicationController
     else
       @profile = profile
       @tokens = current_user.agent_tokens.recent_first
+      @picture = current_user.profile_picture
+      @blurbs = current_user.blurbs.in_order
+      @friends = current_user.friends.order(:username)
       render :show, status: :unprocessable_content
     end
   end
