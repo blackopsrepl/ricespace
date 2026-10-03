@@ -80,12 +80,37 @@ domain, not code.
 `cli/` is a working Ruby client — `ricespace login`, `page show`, `page links`,
 `page rice`, `rate show|set`, `folder clone|push|preview|watch`.
 
-**Done.** `gem install ricespace`, or `make install` from a checkout. It is Ruby, which is
-the point: the site is Ruby, the API the client speaks is written in Ruby, and the people
-who run it have Ruby — so there is one language in the repository rather than two, and no
-build step between editing the client and running it. The gem depends on nothing outside
-the standard library. `make install` also writes the bash, zsh and fish completions,
-generated from the client so they cannot drift from its flags.
+**Done.** `make install` from a checkout builds the gem, installs it and writes the
+completions; `cli/exe/ricespace` runs it without installing anything. It is Ruby, which
+is the point: the site is Ruby, the API the client speaks is written in Ruby, and the
+people who run it have Ruby — so there is one language in the repository rather than two,
+and no build step between editing the client and running it. The gem depends on nothing
+outside the standard library.
+
+**Not yet published to RubyGems.** `gem install ricespace` is the intended story and the
+gemspec is ready for it, but no release has been pushed to the registry, so installing is
+`make install` from a checkout until it is.
+
+## Next after this
+
+### 7. Reactions on what was posted, not only on the page
+
+**Problem.** A page could be reacted to; the things on it could not. That is the wrong way
+round — nobody likes a page in the abstract, they like the rice on it, the build, the demo.
+And a comment could only be left on somebody's page, so every answer to a thing that was
+posted piled up at the top of the page, away from the thing it was about.
+
+**Done when** a reaction can be left on anything posted, a reply can be left under it, and
+the page's own score is assembled from all of it rather than from the page alone.
+
+**Done.** `Rating` and `Comment` are polymorphic, and one `Reactable` concern declares what
+it means for something to be posted, so the next kind of post is a line in a model rather
+than a new table, controller and views. A page's score is the page plus everything posted on
+it — a like on the rice lifts the page that carries it — and the front-page ranking follows
+the same rule. Walls under artifacts start closed, because a page carrying a rice, a build,
+a demo and four links is otherwise seven comment boxes long. Favourites were removed:
+a favourite was a like with a different noun, and with one ranking there is one way to say
+you like a page.
 
 ## Later
 
@@ -120,7 +145,8 @@ not wanting this taken private.
   You find a page because somebody showed it to you, or because other people rated
   it — not because an algorithm decided you should see it. The front page is still a
   directory; it now has a ranking in it, which is the old kind and not a feed.
-- **Two rankings.** There is one number per page and one list. Likes move it up and
-  dislikes move it down, and the page says neither — the score is the whole of what a
-  visitor is told, because a site that explains how to game its ranking is a site
-  whose ranking is gamed.
+- **Two rankings.** There is one number per page and one list. A page's number is what
+  people thought of the page *and everything on it*, and the front page orders by how many
+  people reacted at all rather than by the average — so a page everybody hated ranks above a
+  page nobody noticed. The page itself says only the score, never the breakdown, because a
+  site that explains how to game its ranking is a site whose ranking is gamed.

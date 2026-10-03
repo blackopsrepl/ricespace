@@ -152,8 +152,10 @@ upload writes nothing.
 The one fact on a page its owner does not write. Two directions, and they are different
 operations:
 
-    GET /api/v1/ratings              the rating of the page YOUR token speaks for
+    GET /api/v1/ratings              the reactions on the page YOUR token speaks for
     PUT /api/v1/ratings/:username    your opinion of that page
+    PUT /api/v1/ratings/:username/:kind/:id
+                                     your opinion of one thing they posted
 
 The read answers "what do people think of my page" — the number the owner's own dashboard
 shows. It is not how you read somebody else's score; that is on their page, which is the
@@ -166,19 +168,47 @@ The write takes one of three words:
 
     {"rating": "like"}      {"rating": "dislike"}      {"rating": "none"}
 
-`none` withdraws your opinion; without it there is no way to un-rate a page. The response
-carries the page's new rating, what you said (`yours`), and whether anything actually
+`none` withdraws your opinion; without it there is no way to un-react. The response
+carries the new score, what you said (`yours`), and whether anything actually
 changed (`changed`) — the last matters because this is a `PUT` and not the browser's
 toggle: sending the same opinion twice leaves it as it was and answers `"changed": false`
 rather than flipping it. A retried request must not reverse somebody's opinion.
 
-One opinion per account per page. A page cannot rate itself: `422 own_page`. An unknown
-page is `404 unknown_page`. An unknown opinion is `422 unknown_rating`.
+### Reacting to what was posted, not only to the page
+
+On a page, the thing a person reacts to is the thing that was posted — the rice, a shot of
+it, a build, a demo, a link. `PUT /api/v1/ratings/:username/:kind/:id` is the same act aimed
+at one of those instead of at the page:
+
+    PUT /api/v1/ratings/vittorio/showcase/12   {"rating": "like"}
+
+The kinds are `page`, `showcase`, `shot`, `build`, `photo`, `demo`, `link`, `blurb`. The id
+is the object's own id, which `GET /api/v1/page` gives you for everything on the page. A post
+that is not on `:username`'s page is `404 unknown_post`; a kind that does not exist is
+`422 unknown_kind`.
+
+A page's score is **the page plus everything posted on it**, because that is how the page
+itself counts: a like on the rice lifts the page that carries it. A client reading
+`GET /api/v1/ratings` therefore sees one number assembled from everything, not only from the
+reactions left on the page itself.
+
+One opinion per account per thing. You cannot react to your own post, page or otherwise:
+`422 own_post`. An unknown page is `404 unknown_page`. An unknown opinion is
+`422 unknown_rating`.
 
 The score is `likes - dislikes`; the site itself shows only the score and never breaks it
 down, but a client may. The front page's ranking is **not** this number — it orders by how
 many people reacted at all, which is why a page with many mixed opinions can outrank a
 page with a handful of likes.
+
+## Walls
+
+Anything that can be reacted to can be written on, and the wall is the same in both cases:
+
+    POST   /api/v1/...               not exposed over the API — walls are written in the browser
+
+Comments are **signed in only and always attributable** — there is no anonymous path, and no
+name to send. The kinds and ids are the same ones the reactions use.
 
 ## What an agent editing a folder should expect
 
@@ -264,9 +294,11 @@ Every failure is JSON with a stable code:
 | 422 | `invalid_profile` | the document was refused; `details` lists why |
 | 422 | `invalid_showcase` | the rice was refused; `details` lists why |
 | 422 | `invalid_page` | one or more list entries were refused; `details` lists which |
-| 404 | `unknown_page` | a rating named a page that does not exist |
-| 422 | `own_page` | a page tried to rate itself |
-| 422 | `unknown_rating` | a rating that is not `like`, `dislike` or `none` |
+| 404 | `unknown_page` | a reaction named a page that does not exist |
+| 404 | `unknown_post` | a reaction named a post that is not on that page |
+| 422 | `own_post` | an account tried to react to its own post, page or otherwise |
+| 422 | `unknown_kind` | a reaction named a kind that is not reactable |
+| 422 | `unknown_rating` | a reaction that is not `like`, `dislike` or `none` |
 | 422 | `invalid_image` | the file was not an image; `details` lists why |
 | 422 | `file_too_large` | one file passed its own size limit |
 | 422 | `over_quota` | the account's stored pictures would pass 200 MB |
