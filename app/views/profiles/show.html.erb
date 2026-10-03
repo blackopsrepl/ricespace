@@ -61,7 +61,24 @@
           <dt class="label">member since</dt>
           <dd class="fact-value text-base"><%= @user.created_at.strftime("%B %Y") %></dd>
         </div>
+        <div class="fact">
+          <dt class="label">views</dt>
+          <dd class="fact-value text-base"><%= pluralize(@profile.view_count, "view") %></dd>
+        </div>
+        <div class="fact">
+          <dt class="label">status</dt>
+          <dd class="fact-value text-base">
+            <% if @user.last_seen_at && @user.last_seen_at > 5.minutes.ago %>
+              <span class="text-emerald-400">● online now</span>
+            <% elsif @user.last_seen_at %>
+              <span class="text-zinc-400">last seen <%= time_ago_in_words(@user.last_seen_at) %> ago</span>
+            <% else %>
+              <span class="text-zinc-500">never seen</span>
+            <% end %>
+          </dd>
+        </div>
       </dl>
+      <%# The MySpace "Contacting" section: the action block. %>
       <div class="mt-6 flex flex-wrap items-center gap-3">
         <% if @can_edit %>
           <%= link_to "Edit page", studio_path, class: "btn" %>
@@ -80,6 +97,18 @@
             <%= link_to "Sign in to rate this page", new_session_path, class: "btn" %>
           <% end %>
         </div>
+        <% if signed_in? && !@can_edit %>
+          <% if @favorited %>
+            <%= button_to "★ favorited", favorite_profile_path(@user), method: :delete, class: "btn btn-primary" %>
+          <% else %>
+            <%= button_to "☆ add to favorites", favorite_profile_path(@user), method: :post, class: "btn" %>
+          <% end %>
+          <% if @blocked %>
+            <%= button_to "✕ blocked", block_profile_path(@user), method: :delete, class: "btn" %>
+          <% else %>
+            <%= button_to "✕ block user", block_profile_path(@user), method: :post, class: "btn" %>
+          <% end %>
+        <% end %>
         <% if @rendered.css.present? %>
           <% if signed_in? && current_user != @user %>
             <%= button_to "Take this layout", copy_layout_profile_path(@user), method: :post, class: "btn" %>
@@ -189,7 +218,26 @@
   <% end %>
 </section>
 
-<%# ── 4. ABOUT ME ────────────────────────────────────────────────────────────────
+<%# ── 4. INTERESTS ──────────────────────────────────────────────────────────────
+    The MySpace tabular block: General, Music, Movies, Television, Books, Heroes. %>
+<% if @profile.interests.present? %>
+  <section id="interests" class="mb-12">
+    <h2 class="orangetext15 rule">
+      <span class="label">interests</span>
+    </h2>
+    <dl class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <% @profile.interests.each do |category, value| %>
+        <% next if value.blank? %>
+        <div class="fact">
+          <dt class="label"><%= category %></dt>
+          <dd class="fact-value" title="<%= value %>"><%= value %></dd>
+        </div>
+      <% end %>
+    </dl>
+  </section>
+<% end %>
+
+<%# ── 5. ABOUT ME ────────────────────────────────────────────────────────────────
     The owner's own words, in titled blocks. %>
 <% if @blurbs.any? %>
   <section id="blurbs" class="mb-12">

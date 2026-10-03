@@ -85,6 +85,12 @@ Rails.application.routes.draw do
   # Taking somebody's layout onto your own page, from their page.
   post "profiles/:username/copy_layout", to: "profiles#copy_layout", as: :copy_layout_profile
 
+  # Favorites and blocks — the MySpace "Contacting" section.
+  post "profiles/:username/favorite", to: "profiles#favorite", as: :favorite_profile
+  delete "profiles/:username/favorite", to: "profiles#unfavorite"
+  post "profiles/:username/block", to: "profiles#block", as: :block_profile
+  delete "profiles/:username/block", to: "profiles#unblock"
+
   resources :profiles, only: [ :show ], param: :username
 
   # The published layouts. `apply` is a POST because it changes a page.

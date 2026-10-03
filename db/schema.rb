@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_131938) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -48,6 +48,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_100000) do
     t.datetime "updated_at", null: false
     t.index ["token_digest"], name: "index_agent_tokens_on_token_digest", unique: true
     t.index ["user_id"], name: "index_agent_tokens_on_user_id"
+  end
+
+  create_table "blocks", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.integer "blocked_user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["blocked_user_id"], name: "index_blocks_on_blocked_user_id"
+    t.index ["user_id"], name: "index_blocks_on_user_id"
   end
 
   create_table "blurbs", force: :cascade do |t|
@@ -112,6 +121,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_100000) do
     t.index ["user_id"], name: "index_demos_on_user_id"
   end
 
+  create_table "favorites", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.integer "favorited_user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["favorited_user_id"], name: "index_favorites_on_favorited_user_id"
+    t.index ["user_id"], name: "index_favorites_on_user_id"
+  end
+
   create_table "friendships", force: :cascade do |t|
     t.integer "user_id", null: false
     t.integer "friend_id", null: false
@@ -139,6 +157,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_100000) do
     t.integer "version", default: 0, null: false
     t.string "song_url"
     t.string "song_title"
+    t.json "interests", default: {}
+    t.integer "view_count"
     t.index ["user_id"], name: "index_profiles_on_user_id", unique: true
   end
 
@@ -202,6 +222,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_100000) do
     t.string "greeting"
     t.string "mood"
     t.boolean "admin", default: false, null: false
+    t.datetime "last_seen_at"
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
     t.index ["username"], name: "index_users_on_username", unique: true
   end
@@ -209,12 +230,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_100000) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "agent_tokens", "users"
+  add_foreign_key "blocks", "blocked_users"
+  add_foreign_key "blocks", "users"
   add_foreign_key "blurbs", "users"
   add_foreign_key "build_photos", "builds"
   add_foreign_key "builds", "users"
   add_foreign_key "comments", "users"
   add_foreign_key "comments", "users", column: "author_id"
   add_foreign_key "demos", "users"
+  add_foreign_key "favorites", "favorited_users"
+  add_foreign_key "favorites", "users"
   add_foreign_key "friendships", "users"
   add_foreign_key "friendships", "users", column: "friend_id"
   add_foreign_key "profile_pictures", "users"

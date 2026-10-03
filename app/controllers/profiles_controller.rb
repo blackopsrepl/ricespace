@@ -39,12 +39,20 @@ class ProfilesController < ApplicationController
     @comment = Comment.new
     @can_edit = signed_in? && current_user == @user
 
+    # Track views and last seen — the MySpace "viewed X times" and online status.
+    @profile.increment!(:view_count)
+    @user.touch(:last_seen_at)
+
     # What people think of this page, and what this visitor said. One grouped read for
     # the counts rather than three sums.
     @score = @user.score
     @likes = @user.likes
     @dislikes = @user.dislikes
     @my_rating = signed_in? && current_user != @user ? current_user.rating_for(@user) : nil
+
+    # The MySpace "Contacting" section state.
+    @favorited = signed_in? && current_user != @user ? current_user.favorited_users.include?(@user) : false
+    @blocked = signed_in? && current_user != @user ? current_user.blocked_users.include?(@user) : false
   end
 
   # Take the layout off somebody else's page onto your own.
@@ -95,5 +103,35 @@ class ProfilesController < ApplicationController
     current_user.profile_picture&.destroy!
 
     redirect_to studio_path, notice: "Profile picture removed."
+  end
+
+  # The MySpace "Contacting" section: add to favorites.
+  def favorite
+    target = User.find_by!(username: params[:username])
+    current_user.favorites.find_or_create_by!(favorited_user: target)
+    redirect_to profile_path(target), notice: "Added @#{target.username} to your favorites."
+  rescue ActiveRecord::RecordInvalid => error
+    redirect_to profile_path(params[:username]), alert: error.record.errors.full_messages.to_sentence
+  end
+
+  def unfavorite
+    target = User.find_by!(username: params[:username])
+    current_user.favorites.find_by(favorited_user: target)&.destroy
+    redirect_to profile_path(target), notice: "Removed @#{target.username} from your favorites."
+  end
+
+  # Block a user — they can't see your page or comment on it.
+  def block
+    target = User.find_by!(username: params[:username])
+    current_user.blocks.find_or_create_by!(blocked_user: target)
+    redirect_to profile_path(target), notice: "Blocked @#{target.username}."
+  rescue ActiveRecord::RecordInvalid => error
+    redirect_to profile_path(params[:username]), alert: error.record.errors.full_messages.to_sentence
+  end
+
+  def unblock
+    target = User.find_by!(username: params[:username])
+    current_user.blocks.find_by(blocked_user: target)&.destroy
+    redirect_to profile_path(target), notice: "Unblocked @#{target.username}."
   end
 end

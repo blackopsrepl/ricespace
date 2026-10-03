@@ -70,6 +70,12 @@ class User < ApplicationRecord
   has_many :ratings, dependent: :destroy
   has_many :given_ratings, class_name: "Rating", foreign_key: :author_id, dependent: :destroy
 
+  # Favorites and blocks — the MySpace "Contacting" section.
+  has_many :favorites, dependent: :destroy
+  has_many :favorited_users, through: :favorites, source: :favorited_user
+  has_many :blocks, dependent: :destroy
+  has_many :blocked_users, through: :blocks, source: :blocked_user
+
   # What people think of this page: likes minus dislikes.
   #
   # Calculated rather than stored. A total in a column is a second copy of the truth that
