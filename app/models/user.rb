@@ -1,0 +1,49 @@
+# frozen_string_literal: true
+
+# An account on RiceSpace. A user owns exactly one profile page and may issue
+# agent tokens, which let a coding agent edit that profile on the owner's
+# behalf.
+class User < ApplicationRecord
+  has_secure_password
+
+  # Usernames appear in profile URLs, so they are restricted to the characters
+  # that are safe to put in a path without escaping and that cannot be confused
+  # with another account (case is folded away, and names that the site itself
+  # might want are refused).
+  USERNAME_FORMAT = /\A[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])?\z/
+  RESERVED_USERNAMES = %w[
+    admin api assets about account auth help home legal login logout me new
+    profiles root settings sign-in sign-out sign-up static studio support up
+  ].freeze
+
+  # Long enough that a profile page is not the softest target in the account.
+  MINIMUM_PASSWORD_LENGTH = 12
+
+  has_one :profile, dependent: :destroy
+  has_many :agent_tokens, dependent: :destroy
+
+  normalizes :email_address, with: ->(value) { value.to_s.strip.downcase }
+  normalizes :username, with: ->(value) { value.to_s.strip.downcase }
+
+  validates :email_address, presence: true,
+    format: { with: URI::MailTo::EMAIL_REGEXP },
+    uniqueness: { case_sensitive: false }
+  validates :username, presence: true,
+    format: { with: USERNAME_FORMAT, message: "may only contain lowercase letters, digits and hyphens" },
+    uniqueness: true,
+    exclusion: { in: RESERVED_USERNAMES, message: "is reserved" }
+  validates :name, length: { maximum: 60 }, allow_blank: true
+  validates :headline, length: { maximum: 140 }, allow_blank: true
+  validates :password, length: { minimum: MINIMUM_PASSWORD_LENGTH }, allow_nil: true
+
+  after_create { build_profile.save! unless profile }
+
+  def to_param
+    username
+  end
+
+  # The name shown for this account anywhere the display name is not set.
+  def display_name
+    name.presence || username
+  end
+end
