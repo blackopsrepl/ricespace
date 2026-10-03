@@ -55,10 +55,14 @@ jobs:
       - name: Install it, so a release is never publishing something that cannot be installed
         run: |
           gem install --local ricespace.gem --user-install --no-document
-          # RubyGems writes the wrapper as `<name>.ruby<major.minor>`, not bare `<name>`, and
-          # `--user-install` puts it under the user gem home, which is not on PATH by default.
-          bin="$(dirname "$(gem env user_gemhome)")/bin"
-          "$bin/ricespace.ruby${RUBY_VERSION%.*}" --version
+          # The gem home is the versioned directory and its `bin` is what holds the wrapper —
+          # taking the parent of the gem home finds nothing, because that `bin` belongs to the
+          # Ruby, not to the gem. The wrapper is also named `<name>.ruby<major.minor>` on some
+          # RubyGems versions and bare `<name>` on others, so it is found rather than guessed.
+          bin="$(gem env user_gemhome)/bin"
+          exe="$(ls "$bin"/ricespace* | head -1)"
+          echo "running $exe"
+          "$exe" --version
       - name: Release
         uses: softprops/action-gh-release@v2
         with:
