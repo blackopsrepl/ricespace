@@ -78,15 +78,33 @@ class AccountLifecycleTest < ActionDispatch::IntegrationTest
   end
 
   private
-    # The site's own account, which the seed creates. Find-or-create rather than a
-    # bare read because a parallel test worker has its own database copy and may not
-    # have been seeded.
+    # The site's own account. Find-or-create rather than a bare read because a parallel
+    # test worker has its own database copy and may not have been seeded — and if it was
+    # seeded, it carries the real password from a file this test cannot read, so signing
+    # in as him means giving him a password this test knows.
     def ron
-      @ron ||= User.ron || User.create!(username: User::RON, email_address: "ron@ricespace.example",
-        password: "correct horse battery", admin: true)
+      @ron ||= as_test_account(User.ron || User.create!(username: User::RON,
+        email_address: "ron@ricespace.example", password: TEST_PASSWORD, admin: true))
     end
 
+    # Signing in is rate limited by client, so a test that signs in several times in one
+    # run runs into its own limit — the counter is per IP and every request here comes
+    # from the same one. Clearing the store keeps these tests about the account rather
+    # than about the limit, which has its own test below. `bin/ci` hides this by running
+    # the suite in parallel, which is why it only shows up when the file runs alone.
     def sign_in_as(user)
-      post session_path, params: { email_address: user.email_address, password: "correct horse battery" }
+      ApplicationController::RATE_LIMIT_STORE.clear
+
+      post session_path, params: { email_address: user.email_address, password: TEST_PASSWORD }
+    end
+
+    # A password these tests can sign in with. The seeded Ron carries a real password
+    # read from a file outside the app — deliberately, since the repository is public —
+    # so a test cannot know it and cannot sign in as him as seeded.
+    TEST_PASSWORD = "correct horse battery"
+
+    def as_test_account(user)
+      user.update!(password: TEST_PASSWORD, password_confirmation: TEST_PASSWORD)
+      user
     end
 end
