@@ -24,6 +24,7 @@ class Profile < ApplicationRecord
   normalizes :song_url, with: ->(value) { value.to_s.strip }
 
   validates :document, length: { maximum: MAX_DOCUMENT_LENGTH }
+  validates :interests, length: { maximum: 10_000 }
   validates :song_url,
     format: { with: SONG_URL, message: "must be an http(s) address" },
     allow_blank: true
