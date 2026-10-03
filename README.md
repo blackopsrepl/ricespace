@@ -53,17 +53,20 @@ page show`, `ricespace page rice`, `ricespace folder clone`, and so on.
 
 ## Installing the CLI
 
-    curl -fsSL https://raw.githubusercontent.com/blackopsrepl/ricespace/master/cli/install.sh | bash
+    cargo install --git https://github.com/blackopsrepl/ricespace ricespace
 
-That downloads the release built for your platform, checks it against the published
-checksum, and installs it into `~/.local` with shell completions. No toolchain needed.
+From a checkout, or if you already have the repo:
 
-From a checkout, the same script builds instead of downloading:
+    make install          # cargo install, then write shell completions
+    cargo install --path cli
 
-    ./cli/install.sh              # into ~/.local
-    PREFIX=/usr/local ./cli/install.sh
+`cargo install` is the whole distribution story. It is a Rust binary with no runtime
+dependencies, so it does not need an installer script, a release archive, or a download
+to be verified — cargo builds it from the source you can read and puts it where cargo
+puts binaries.
 
-`VERSION=v0.2.0 ./cli/install.sh` takes a specific release.
+`make install` also writes the bash, zsh and fish completion files, generated from the
+binary so they cannot drift from its flags.
 
 ## Working in a folder
 

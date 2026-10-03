@@ -127,6 +127,7 @@ pub fn notice(message: &str) {
 pub fn rating(rating: &Rating) {
     section("rating");
     key_value("page", &format!("@{}", rating.username));
+    key_value("at", &rating.url);
     key_value("score", &rating.score.to_string());
     key_value("likes", &rating.likes.to_string());
     key_value("dislikes", &rating.dislikes.to_string());

@@ -62,7 +62,7 @@ help:
 	@printf -- "  $(AMBER)the CLI$(RESET)\n"
 	@printf -- "    $(BOLD)make cli$(RESET)          $(DIM)build the ricespace client$(RESET)\n"
 	@printf -- "    $(BOLD)make cli-test$(RESET)     $(DIM)its tests$(RESET)\n"
-	@printf -- "    $(BOLD)make install$(RESET)      $(DIM)install it into ~/.local, with completions$(RESET)\n\n"
+	@printf -- "    $(BOLD)make install$(RESET)      $(DIM)cargo install it, then write completions$(RESET)\n\n"
 	@printf -- "  $(AMBER)a folder that is your space$(RESET)\n"
 	@printf -- "    $(BOLD)ricespace folder clone$(RESET)   $(DIM)write your page out as files$(RESET)\n"
 	@printf -- "    $(BOLD)ricespace folder preview$(RESET) $(DIM)draw the folder, with the site's own cleaner$(RESET)\n"
@@ -155,9 +155,23 @@ cli-test:
 	@cd cli && cargo test 2>&1 | tail -6
 
 install: cli
-	@printf -- "$(CYAN)$(ARROW)$(RESET) installing into $(AMBER)$${PREFIX:-$$HOME/.local}$(RESET)\n"
-	@cli/install.sh
-	@printf -- "$(GREEN)$(CHECK)$(RESET) $(AMBER)ricespace$(RESET) is on your PATH\n\n"
+	@printf -- "$(CYAN)$(ARROW)$(RESET) installing the client with cargo\n"
+	@cargo install --path cli --force
+	@printf -- "$(GREEN)$(CHECK)$(RESET) $(AMBER)ricespace$(RESET) is on your PATH\n"
+	@$(MAKE) --no-print-directory completions-install
+
+# The completion files a shell reads on its own, written where each one already looks so
+# nobody has to source anything. Generated from the binary rather than written by hand, so
+# they cannot drift from the flags.
+completions-install: cli
+	@printf -- "$(CYAN)$(ARROW)$(RESET) writing shell completions\n"
+	@mkdir -p $(HOME)/.local/share/bash-completion/completions
+	@mkdir -p $(HOME)/.local/share/zsh/site-functions
+	@mkdir -p $(HOME)/.local/share/fish/vendor_completions.d
+	@cli/target/release/ricespace completions bash > $(HOME)/.local/share/bash-completion/completions/ricespace 2>/dev/null || true
+	@cli/target/release/ricespace completions zsh > $(HOME)/.local/share/zsh/site-functions/_ricespace 2>/dev/null || true
+	@cli/target/release/ricespace completions fish > $(HOME)/.local/share/fish/vendor_completions.d/ricespace.fish 2>/dev/null || true
+	@printf -- "$(GREEN)$(CHECK)$(RESET) completions for bash, zsh and fish\n\n"
 
 completions:
 	@$(MAKE) --no-print-directory banner

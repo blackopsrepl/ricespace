@@ -80,11 +80,11 @@ domain, not code.
 `cli/` is a working Rust client — `ricespace login`, `page show`, `page links`,
 `page rice`, `rate show|set`, `folder clone|push|preview|watch`.
 
-**Done.** `cli/install.sh` installs two ways: from a release it downloads the binary for
-this platform and verifies it against the published checksum, and from a checkout it builds
-with cargo. `.github/workflows/release.yml` runs the gate, builds static binaries for
-Linux and macOS on both architectures, and attaches them to the tag's release — so pushing
-a `v*` tag is the whole release. What remains is the first tag.
+**Done.** `cargo install --git https://github.com/blackopsrepl/ricespace ricespace`, or
+`make install` from a checkout. It is a Rust binary with no runtime dependencies, so the
+distribution is `cargo install` and nothing else: no installer script, no release archive,
+no checksum to verify. `make install` also writes the bash, zsh and fish completions,
+generated from the binary.
 
 ## Later
 
