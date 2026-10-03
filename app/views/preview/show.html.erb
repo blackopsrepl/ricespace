@@ -1,0 +1,101 @@
+<main class="mx-auto max-w-6xl px-6 py-10">
+      <%= author_stylesheet(@rendered.css) %>
+
+      <header id="profile-header" class="mb-10 flex flex-wrap items-start justify-between gap-6">
+        <div class="contactTable">
+          <h1 class="nametext text-3xl font-semibold tracking-tight">@<%= @username %></h1>
+          <% if @rice["title"].present? %>
+            <p class="rice-title mt-2 text-xl">@<%= @username %> — <%= @rice["title"] %></p>
+          <% end %>
+        </div>
+      </header>
+
+      <% if @rice.any? %>
+        <section id="showcase" class="showcase mb-14">
+          <h2 class="orangetext15 rule"><span class="label">the rice</span></h2>
+          <% if @rice["summary"].present? %>
+            <p class="rice-summary mt-4 text-zinc-300"><%= @rice["summary"] %></p>
+          <% end %>
+          <dl class="mt-5 flex flex-wrap gap-x-6 gap-y-3">
+            <% @rice.except("title", "summary", "details").each do |label, value| %>
+              <div class="fact"><dt class="label"><%= label %></dt><dd class="fact-value"><%= value %></dd></div>
+            <% end %>
+          </dl>
+        </section>
+      <% end %>
+
+      <%# The authored markup, exactly where the site puts it and nothing else around it. %>
+      <article id="profile" class="profile-page mb-12">
+        <%= @rendered.html %>
+      </article>
+
+      <% if @blurbs.any? %>
+        <section class="mb-12">
+          <% @blurbs.each do |blurb| %>
+            <div class="blurb mb-6">
+              <h3 class="blurb-title nametext text-lg"><%= blurb["title"] %></h3>
+              <div class="mt-2 text-zinc-300"><%= ProfileMarkup.render(blurb["body"].to_s).html %></div>
+            </div>
+          <% end %>
+        </section>
+      <% end %>
+
+      <% if @demos.any? %>
+        <section id="demos" class="mb-12">
+          <h2 class="orangetext15 rule"><span class="label">demos</span></h2>
+          <ul class="mt-4 space-y-2">
+            <% @demos.each do |demo| %>
+              <li class="demo">
+                <span class="demo-title"><%= demo["title"] %></span>
+                <span class="demo-credit label">
+                  <%= [ demo["group"], demo["party"], demo["year"] ].compact.join(" · ") %>
+                </span>
+              </li>
+            <% end %>
+          </ul>
+        </section>
+      <% end %>
+
+      <% if @builds.any? %>
+        <section id="hardware" class="mb-12">
+          <h2 class="orangetext15 rule"><span class="label">hardware</span></h2>
+          <% @builds.each do |build| %>
+            <div class="build mt-4">
+              <h3 class="build-title text-lg"><%= build["title"] %></h3>
+              <p class="label"><%= [ build["kind"], build["specs"], build["cooling"] ].compact.reject(&:blank?).join(" · ") %></p>
+              <% if build["summary"].present? %><p class="mt-2 text-zinc-300"><%= build["summary"] %></p><% end %>
+              <% if build["details"].present? %>
+                <div class="build-details mt-2 text-zinc-300"><%= ProfileMarkup.render(build["details"].to_s).html %></div>
+              <% end %>
+            </div>
+          <% end %>
+        </section>
+      <% end %>
+
+      <% if @links.any? %>
+        <section id="watch" class="mb-12">
+          <h2 class="orangetext15 rule"><span class="label">watch</span></h2>
+          <ul class="mt-4 space-y-1">
+            <% @links.each do |link| %>
+              <li class="label"><%= link["title"].presence || link["url"] %></li>
+            <% end %>
+          </ul>
+        </section>
+      <% end %>
+
+      <section id="friends" class="friendSpace mb-12">
+        <h2 class="orangetext15 rule">
+          <span class="label">friends</span>
+          <span class="label friendCount text-zinc-400"><%= @friends.size %></span>
+        </h2>
+        <% if @friends.any? %>
+          <ul class="top8 mt-4 flex flex-wrap gap-3">
+            <% @friends.each do |friend| %>
+              <li class="friend label"><%= friend.is_a?(Hash) ? friend["username"] : friend %></li>
+            <% end %>
+          </ul>
+        <% else %>
+          <p class="mt-4 text-sm text-zinc-500">No friends listed yet.</p>
+        <% end %>
+      </section>
+    </main>

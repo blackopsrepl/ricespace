@@ -19,6 +19,12 @@ Rails.application.routes.draw do
       resource :showcase, only: [ :show, :update ], controller: "showcases"
       # Everything else that lives on a page: links, demos, hardware, friends, blurbs.
       resource :page, only: [ :show, :update ], controller: "page"
+      # The pictures themselves: a folder has assets/, and a folder whose pictures cannot
+      # be pushed is not a folder that holds the page.
+      resources :images, only: [ :create, :destroy ]
+      # The whole order at once: a folder holds one order, and sending it as N moves would
+      # be N requests to say one thing.
+      patch "images/order", to: "images#order"
     end
   end
 
@@ -33,6 +39,11 @@ Rails.application.routes.draw do
   delete "showcase/shots/:id", to: "showcases#remove_shot", as: :showcase_shot
   patch "showcase/shots/:id/move", to: "showcases#move_shot", as: :move_showcase_shot
   resource :account, only: [ :update, :destroy ], controller: "accounts"
+
+  # The local preview: draws a folder from disk with the site's own renderer, so a person
+  # editing files sees the page the site will make of them. Local only — nothing is stored.
+  get "preview/:folder", to: "preview#show", as: :preview, constraints: { folder: /[^\/]+/ }
+
   resources :agent_tokens, only: [ :create, :destroy ]
   resources :friendships, only: [ :create, :destroy ] do
     member { patch :move }

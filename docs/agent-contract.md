@@ -122,6 +122,44 @@ The command-line client speaks this API with the same token — see `cli/` in th
 repository (`ricespace page show`, `ricespace page rice --theme …`, `ricespace page
 links`, and so on).
 
+## The pictures
+
+The lists name pictures; this endpoint carries the bytes. An agent editing a folder
+needs it, because a page that names a screenshot it cannot upload is a page that
+cannot be moved.
+
+    POST /api/v1/images            multipart: kind, file, and caption or record
+    DELETE /api/v1/images/:id?kind=shot
+    PATCH /api/v1/images/order     {"kind": "shot", "ids": [3, 1, 2]}
+
+`kind` is `shot` (a rice screenshot), `build` (a hardware photo) or `picture` (the
+account's own profile picture). `record`, for a build photo, names the build by its
+**title** — an id is the site's business, a title is the author's; an id is accepted
+too if you already have one. `caption` becomes the line under the picture.
+
+Order is set **whole**, in one request, as the list of ids in the order you want. Ids
+that are not this account's are ignored and anything you leave out keeps its place
+afterwards, so a drifted order converges rather than failing. There is no
+one-picture-at-a-time move to call.
+
+Two ceilings, both reported with `error.code`: `file_too_large` when one file exceeds
+its own limit (5 MB for the profile picture, 8 MB for a shot or a build photo), and
+`over_quota` when the account's total stored pictures would pass 200 MB. A refused
+upload writes nothing.
+
+## What an agent editing a folder should expect
+
+`ricespace folder clone` writes the page as files in the API's own shapes —
+`page.html`, `rice.json`, one JSON file per list, and `assets/` holding the pictures.
+`ricespace folder push` sends them back. Two properties of the API make that safe and
+are worth knowing if you build your own client:
+
+- A list you send is compared on the fields a folder carries. Extra keys the API
+  returns — a build's `photos`, a demo's `embeds`, the `platform` derived from a
+  link's url — are the site's own and can be ignored on a round trip.
+- The rice's facts arrive at the top level (`title`, `summary`, `details`) and under
+  `facts`; both are the same values.
+
 ## What the page is made of, and what to target
 
 A page is not one blank slot. It has an anatomy, and its parts carry the ids and
@@ -193,6 +231,11 @@ Every failure is JSON with a stable code:
 | 422 | `invalid_profile` | the document was refused; `details` lists why |
 | 422 | `invalid_showcase` | the rice was refused; `details` lists why |
 | 422 | `invalid_page` | one or more list entries were refused; `details` lists which |
+| 422 | `invalid_image` | the file was not an image; `details` lists why |
+| 422 | `file_too_large` | one file passed its own size limit |
+| 422 | `over_quota` | the account's stored pictures would pass 200 MB |
+| 400 | `missing_file` | an upload arrived with no file |
+| 404 | `unknown_record` | a build photo named a build that is not there |
 
 ## A worked example
 

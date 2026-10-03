@@ -1,0 +1,24 @@
+<%# The preview's shell. Deliberately not the site's chrome: the point is to show the page a
+    folder would become, and a page's own stylesheet is meant to restyle the chrome too —
+    so the header and footer would be part of the preview only if they were part of the
+    page. The authored stylesheet is written by the body view, after anything loaded here,
+    exactly as a real profile does it. %>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>@<%= @username %> — preview</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="robots" content="noindex">
+    <link rel="stylesheet" href="/assets/application.css">
+    <link rel="stylesheet" href="/assets/tailwind.css">
+  </head>
+  <body class="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
+    <div class="border-b border-amber-500/40 bg-amber-500/10 px-6 py-2">
+      <p class="label text-amber-200">
+        preview — not published · drawn by the site's own cleaner, so what survives here
+        survives there
+      </p>
+    </div>
+    <%= yield %>
+  </body>
+</html>
