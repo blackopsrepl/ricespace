@@ -25,6 +25,10 @@ Rails.application.routes.draw do
       # The whole order at once: a folder holds one order, and sending it as N moves would
       # be N requests to say one thing.
       patch "images/order", to: "images#order"
+      # What other people said about a page: the score of your own, and your opinion of
+      # somebody else's. The one fact on a page its owner does not write.
+      resource :ratings, only: :show, controller: "ratings"
+      put "ratings/:username", to: "ratings#update", as: :rate_page
     end
   end
 

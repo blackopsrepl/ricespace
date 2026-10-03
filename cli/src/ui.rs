@@ -9,7 +9,7 @@
 //! piped somewhere without escape codes landing in the file. Every failure writes to
 //! stderr so it never contaminates that pipe.
 
-use crate::space::{Failure, Page, Showcase};
+use crate::space::{Failure, Page, Rating, Showcase};
 
 /// The wordmark, as the Makefile draws it. Kept in the binary because the CLI is what
 /// somebody runs on a machine that has none of this checked out.
@@ -119,6 +119,35 @@ pub fn key_value(label: &str, value: &str) {
 /// A line of information, not an error: stdout, so a pipe keeps it in order.
 pub fn notice(message: &str) {
     println!("{} {}", cyan("=>"), accent(message));
+}
+
+/// A page's rating. The score is the number a visitor sees; the counts underneath are
+/// what it is made of, which the site itself does not show — this is the owner's own
+/// terminal, and an owner is allowed to see their own working.
+pub fn rating(rating: &Rating) {
+    section("rating");
+    key_value("page", &format!("@{}", rating.username));
+    key_value("score", &rating.score.to_string());
+    key_value("likes", &rating.likes.to_string());
+    key_value("dislikes", &rating.dislikes.to_string());
+    key_value("raters", &rating.raters.to_string());
+
+    if rating.score == 0 {
+        println!("  {}", dim("nobody has rated this page yet"));
+    }
+}
+
+/// The answer to rating somebody: what it is now, and what you said.
+pub fn rated(username: &str, opinion: &str, rating: &Rating) {
+    let now = rating.score;
+
+    match (opinion, rating.changed) {
+        ("none", Some(false)) => ok(&format!("you had no rating on @{username} — nothing to take back")),
+        ("none", _) => ok(&format!("took your rating off @{username} — it is on {now}")),
+        (_, Some(false)) => ok(&format!("already your rating on @{username} — it is on {now}")),
+        ("dislike", _) => ok(&format!("disliked @{username} — it is on {now}")),
+        _ => ok(&format!("liked @{username} — it is on {now}")),
+    }
 }
 
 /// Yes/no as a person reads it, in the colour the answer deserves.

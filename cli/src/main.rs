@@ -91,6 +91,10 @@ enum Command {
     #[command(subcommand)]
     Page(PageCommand),
 
+    /// What people think of your page — and what you think of somebody else's.
+    #[command(subcommand)]
+    Rate(RateCommand),
+
     /// Make a folder that is your space, and work in it.
     #[command(subcommand)]
     Folder(FolderCommand),
@@ -152,6 +156,23 @@ enum FolderCommand {
         /// Seconds between checks.
         #[arg(long, default_value_t = 2)]
         every: u64,
+    },
+}
+
+#[derive(Subcommand)]
+enum RateCommand {
+    /// Show the rating of your page.
+    Show,
+
+    /// Like, dislike, or un-rate somebody's page.
+    ///
+    /// `none` takes an opinion back, the way pressing the button you already pressed does.
+    Set {
+        /// Whose page. Not your own — a page cannot rate itself.
+        username: String,
+
+        /// like, dislike or none.
+        opinion: String,
     },
 }
 
@@ -455,6 +476,37 @@ fn run(cli: &Cli, base: &str, token: &str) -> Result<(), space::Failure> {
                     Err(failure) => ui::failure(&failure),
                 }
             }
+        }
+
+        Command::Rate(RateCommand::Show) => {
+            let client = space::Space::new(base, token);
+            let rating = client.rating()?;
+
+            if cli.json {
+                return ui::raw(&rating.raw);
+            }
+
+            ui::rating(&rating);
+            Ok(())
+        }
+
+        Command::Rate(RateCommand::Set { username, opinion }) => {
+            let opinion = opinion.to_lowercase();
+            if !["like", "dislike", "none"].contains(&opinion.as_str()) {
+                return Err(space::Failure::Usage(
+                    "say like, dislike or none — `none` takes your rating back".into(),
+                ));
+            }
+
+            let client = space::Space::new(base, token);
+            let rating = client.rate(username, &opinion)?;
+
+            if cli.json {
+                return ui::raw(&rating.raw);
+            }
+
+            ui::rated(username, &opinion, &rating);
+            Ok(())
         }
 
         Command::Page(PageCommand::Show) => {

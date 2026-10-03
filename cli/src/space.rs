@@ -56,6 +56,29 @@ pub struct Page {
     pub raw: Value,
 }
 
+/// A page's rating, as the site counts it.
+///
+/// `score` is the number a visitor sees and `likes`/`dislikes` are what it is made of.
+/// They are here for a client that wants to show its working; the site itself shows only
+/// the score, because a ranking whose arithmetic is published is a ranking that gets
+/// gamed.
+#[derive(Debug, Deserialize)]
+pub struct Rating {
+    pub username: String,
+    pub url: String,
+    pub score: i64,
+    pub likes: i64,
+    pub dislikes: i64,
+    pub raters: i64,
+    /// This account's own opinion of that page: `like`, `dislike`, or nothing.
+    pub yours: Option<String>,
+    /// Whether this request changed anything. Setting the opinion you already had does
+    /// not, and a client asked to say that rather than claim a change that did not happen.
+    pub changed: Option<bool>,
+    #[serde(skip)]
+    pub raw: Value,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Limits {
     pub document_bytes: usize,
@@ -182,6 +205,42 @@ impl Space {
         let raw = self.send("GET", "/api/v1/page", None)?;
 
         Ok(Lists { raw })
+    }
+
+    /// The rating of the page this token speaks for: its score, the counts it is made of,
+    /// and what this account said about other pages.
+    pub fn rating(&self) -> Result<Rating, Failure> {
+        let raw = self.send("GET", "/api/v1/ratings", None)?;
+        let mut rating: Rating = serde_json::from_value(
+            raw.get("rating").cloned().unwrap_or_else(|| raw.clone()),
+        )
+        .map_err(|error| Failure::Transport(format!("could not read the rating: {error}")))?;
+
+        rating.raw = raw;
+        Ok(rating)
+    }
+
+    /// This account's opinion of somebody else's page: `like`, `dislike` or `none`.
+    ///
+    /// `none` withdraws the opinion. It is the same act as pressing the button you already
+    /// pressed, which is the only way to un-rate a page.
+    pub fn rate(&self, username: &str, opinion: &str) -> Result<Rating, Failure> {
+        let body = serde_json::json!({ "rating": opinion });
+        let raw = self.send("PUT", &format!("/api/v1/ratings/{username}"), Some(body))?;
+
+        let mut rating: Rating = serde_json::from_value(
+            raw.get("rating").cloned().unwrap_or_else(|| raw.clone()),
+        )
+        .map_err(|error| Failure::Transport(format!("could not read the rating: {error}")))?;
+
+        // `yours` and `changed` describe the request rather than the page, so they sit
+        // beside the rating in the response rather than inside it. Read them from where
+        // they are: taking them from the nested object silently yields "no opinion" and
+        // "nothing changed" for every answer.
+        rating.yours = raw.get("yours").and_then(Value::as_str).map(str::to_string);
+        rating.changed = raw.get("changed").and_then(Value::as_bool);
+        rating.raw = raw;
+        Ok(rating)
     }
 
     /// Replace the named lists, leaving the rest of the page alone.

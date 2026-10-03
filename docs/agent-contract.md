@@ -147,6 +147,39 @@ its own limit (5 MB for the profile picture, 8 MB for a shot or a build photo), 
 `over_quota` when the account's total stored pictures would pass 200 MB. A refused
 upload writes nothing.
 
+## What other people think of a page
+
+The one fact on a page its owner does not write. Two directions, and they are different
+operations:
+
+    GET /api/v1/ratings              the rating of the page YOUR token speaks for
+    PUT /api/v1/ratings/:username    your opinion of that page
+
+The read answers "what do people think of my page" — the number the owner's own dashboard
+shows. It is not how you read somebody else's score; that is on their page, which is the
+page a visitor sees.
+
+    {"rating": {"username": "vittorio", "score": 3, "likes": 4, "dislikes": 1,
+                "raters": 5, "yours": null}}
+
+The write takes one of three words:
+
+    {"rating": "like"}      {"rating": "dislike"}      {"rating": "none"}
+
+`none` withdraws your opinion; without it there is no way to un-rate a page. The response
+carries the page's new rating, what you said (`yours`), and whether anything actually
+changed (`changed`) — the last matters because this is a `PUT` and not the browser's
+toggle: sending the same opinion twice leaves it as it was and answers `"changed": false`
+rather than flipping it. A retried request must not reverse somebody's opinion.
+
+One opinion per account per page. A page cannot rate itself: `422 own_page`. An unknown
+page is `404 unknown_page`. An unknown opinion is `422 unknown_rating`.
+
+The score is `likes - dislikes`; the site itself shows only the score and never breaks it
+down, but a client may. The front page's ranking is **not** this number — it orders by how
+many people reacted at all, which is why a page with many mixed opinions can outrank a
+page with a handful of likes.
+
 ## What an agent editing a folder should expect
 
 `ricespace folder clone` writes the page as files in the API's own shapes —
@@ -231,6 +264,9 @@ Every failure is JSON with a stable code:
 | 422 | `invalid_profile` | the document was refused; `details` lists why |
 | 422 | `invalid_showcase` | the rice was refused; `details` lists why |
 | 422 | `invalid_page` | one or more list entries were refused; `details` lists which |
+| 404 | `unknown_page` | a rating named a page that does not exist |
+| 422 | `own_page` | a page tried to rate itself |
+| 422 | `unknown_rating` | a rating that is not `like`, `dislike` or `none` |
 | 422 | `invalid_image` | the file was not an image; `details` lists why |
 | 422 | `file_too_large` | one file passed its own size limit |
 | 422 | `over_quota` | the account's stored pictures would pass 200 MB |

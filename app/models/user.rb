@@ -85,6 +85,16 @@ class User < ApplicationRecord
     given_ratings.find_by(user_id: other.id)&.score
   end
 
+  # The same thing as the word a client sends and receives: "like", "dislike" or nil.
+  # A score is the arithmetic; this is the opinion, and the two are worth keeping apart
+  # because only one of them is a person's.
+  def rating_value_for(other)
+    case rating_for(other)
+    when Rating::LIKE then "like"
+    when Rating::DISLIKE then "dislike"
+    end
+  end
+
   # The published stylesheets this account may apply to its page.
   def layouts
     Layout.all
