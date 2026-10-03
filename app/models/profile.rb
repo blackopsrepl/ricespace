@@ -24,8 +24,10 @@ class Profile < ApplicationRecord
   # the owner can resubmit, a 409 the agent must handle).
   before_save :bump_version, if: :document_changed?
 
-  # The markup as it may be rendered, sanitized for the current rule set.
-  def markup
+  # The page as its author wrote it, cleaned for display: markup and stylesheet
+  # together. The stylesheet is not optional — without it a profile is a document
+  # with its layout missing.
+  def rendered
     ProfileMarkup.render(document)
   end
 

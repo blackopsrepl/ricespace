@@ -3,12 +3,12 @@
 require "test_helper"
 
 class ProfileTest < ActiveSupport::TestCase
-  test "a new account's profile is a profile page" do
+  test "a new account's profile is an empty page" do
     profile = User.create!(username: "vittorio", email_address: "v@example.com", password: "correct horse battery").profile
 
     assert_equal "", profile.document
-    assert_equal "", profile.markup.to_s
-    assert_predicate profile.markup, :html_safe?
+    assert_equal "", profile.rendered.html.to_s
+    assert_equal "", profile.rendered.css
   end
 
   test "the stored document is what the author wrote" do
@@ -18,12 +18,21 @@ class ProfileTest < ActiveSupport::TestCase
     assert_includes profile.reload.document, "<marquee"
   end
 
-  test "markup is sanitized on read, so existing pages follow tightened rules" do
+  test "the page is cleaned on read, so existing pages follow tightened rules" do
     profile = create_profile(document: %(<p>hi</p><script>alert(1)</script>))
 
-    assert_includes profile.markup, "<p>hi</p>"
-    refute_includes profile.markup, "alert(1)"
+    assert_includes profile.rendered.html, "<p>hi</p>"
+    refute_includes profile.rendered.html, "alert(1)"
     assert_includes profile.reload.document, "alert(1)"
+  end
+
+  test "a profile's stylesheet comes back with its markup" do
+    profile = create_profile(document: %(<style>body { background: #000 }</style><p>hi</p>))
+    rendered = profile.rendered
+
+    assert_includes rendered.css, "background: #000"
+    refute_includes rendered.html, "<style"
+    assert_predicate rendered.html, :html_safe?
   end
 
   test "a page cannot be stored unbounded" do
