@@ -208,6 +208,7 @@ fn run(cli: &Cli, base: &str, token: &str) -> Result<(), space::Failure> {
 
         Command::Whoami => {
             if base.trim().is_empty() {
+                ui::wordmark();
                 ui::key_value("space", "(not set)");
                 ui::key_value("token", if token.trim().is_empty() { "(not set)" } else { "set" });
                 ui::notice("Nothing to call yet — run `ricespace login`.");
@@ -216,6 +217,7 @@ fn run(cli: &Cli, base: &str, token: &str) -> Result<(), space::Failure> {
 
             let who = space::Space::new(base, token).whoami()?;
 
+            ui::wordmark();
             ui::key_value("space", base);
             ui::key_value("username", &format!("@{}", who.username));
             ui::key_value("token", &mask(token));
@@ -226,7 +228,8 @@ fn run(cli: &Cli, base: &str, token: &str) -> Result<(), space::Failure> {
         Command::Ping => {
             let who = space::Space::new(base, token).whoami()?;
 
-            ui::notice(&format!("{base} is reachable and the token works."));
+            ui::wordmark();
+            ui::ok(&format!("{base} is reachable and the token works."));
             ui::key_value("speaking for", &format!("@{}", who.username));
             Ok(())
         }

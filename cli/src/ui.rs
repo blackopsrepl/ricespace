@@ -1,13 +1,101 @@
 //! The terminal view.
 //!
-//! The site's design language, in a terminal: a label is small and quiet, the value under
-//! it is what you read, and nothing is decorated that is not information. No colour unless
-//! the output is a terminal that wants it, and no boxes.
+//! The site's design language, in a terminal: hot magenta, electric cyan and the amber
+//! the pages use, the wordmark up top the way the Makefile wears it, and a rice drawn
+//! when there is one to draw.
 //!
-//! Everything here writes to stdout; a failure writes to stderr, so `ricespace page pull -`
-//! can be piped somewhere without a stray notice landing in the file.
+//! Colour is for a person. Anything that is not a terminal — a pipe, a redirect, a
+//! `NO_COLOR` prompt — gets the same view in plain text, so `ricespace page pull -` can be
+//! piped somewhere without escape codes landing in the file. Every failure writes to
+//! stderr so it never contaminates that pipe.
 
 use crate::space::{Failure, Page, Showcase};
+
+/// The wordmark, as the Makefile draws it. Kept in the binary because the CLI is what
+/// somebody runs on a machine that has none of this checked out.
+const WORDMARK: [&str; 5] = [
+    r" ___ _        ___                   ",
+    r"| _ (_)__ ___/ __|_ __  __ _ __ ___ ",
+    r"|   / / _/ -_)__ \ '_ \/ _` / _/ -_)",
+    r"|_|_\_\__\___|___/ .__/\__,_\__\___|",
+    r"                 |_|                ",
+];
+
+/// A rice, for when the page has one — or when it needs one.
+const RICE: [&str; 4] = [
+    r" ___ ___ ___ ___ ",
+    r"| _ \_ _/ __| __|",
+    r"|   /| | (__| _| ",
+    r"|_|_\___\___|___|",
+];
+
+// The site's palette, as the Makefile has it.
+const MAGENTA: &str = "\x1b[95m";
+const CYAN: &str = "\x1b[96m";
+const AMBER: &str = "\x1b[38;2;255;194;75m";
+const GREEN: &str = "\x1b[92m";
+const YELLOW: &str = "\x1b[93m";
+const BOLD: &str = "\x1b[1m";
+const DIM: &str = "\x1b[2m";
+const RESET: &str = "\x1b[0m";
+
+/// Whether the output is a terminal, so a pipe gets plain text and a person gets the
+/// colour. Read once; `NO_COLOR` wins over everything, as it should.
+fn styled() -> bool {
+    std::env::var("NO_COLOR").is_err() && std::io::IsTerminal::is_terminal(&std::io::stdout())
+}
+
+fn paint(value: &str, colour: &str) -> String {
+    if styled() {
+        format!("{colour}{value}{RESET}")
+    } else {
+        value.to_string()
+    }
+}
+
+fn dim(value: &str) -> String {
+    paint(value, DIM)
+}
+
+fn bright(value: &str) -> String {
+    paint(value, BOLD)
+}
+
+fn accent(value: &str) -> String {
+    paint(value, AMBER)
+}
+
+fn cyan(value: &str) -> String {
+    paint(value, CYAN)
+}
+
+fn magenta(value: &str) -> String {
+    paint(value, MAGENTA)
+}
+
+fn green(value: &str) -> String {
+    paint(value, GREEN)
+}
+
+/// The wordmark and the version line, worn the way the Makefile wears it.
+pub fn wordmark() {
+    println!();
+    for line in WORDMARK {
+        println!("{}", magenta(line));
+    }
+    println!(
+        "  {} {} {}",
+        dim(&format!("v{}", env!("CARGO_PKG_VERSION"))),
+        accent("pages you build"),
+        dim("· the space in your terminal")
+    );
+    println!();
+}
+
+/// A section heading: the name in cyan, so the eye finds it while scrolling.
+pub fn section(title: &str) {
+    println!("{}", cyan(&title.to_uppercase()));
+}
 
 /// Bytes as a person reads them.
 fn human_bytes(bytes: u64) -> String {
@@ -22,62 +110,40 @@ fn human_bytes(bytes: u64) -> String {
     }
 }
 
-/// Whether the output is a terminal, so a pipe gets plain text and a person gets the
-/// emphasis. Read once; `NO_COLOR` wins over everything, as it should.
-fn styled() -> bool {
-    std::env::var("NO_COLOR").is_err() && std::io::IsTerminal::is_terminal(&std::io::stdout())
-}
-
-fn dim(value: &str) -> String {
-    if styled() {
-        format!("\x1b[2m{value}\x1b[0m")
-    } else {
-        value.to_string()
-    }
-}
-
-fn bright(value: &str) -> String {
-    if styled() {
-        format!("\x1b[1m{value}\x1b[0m")
-    } else {
-        value.to_string()
-    }
-}
-
-fn accent(value: &str) -> String {
-    if styled() {
-        format!("\x1b[33m{value}\x1b[0m")
-    } else {
-        value.to_string()
-    }
-}
-
-/// A label over a value, the unit the whole view is built from.
+/// A label over a value, the unit the whole view is built from. The label is quiet, the
+/// value is what you read.
 pub fn key_value(label: &str, value: &str) {
-    println!("{}  {}", dim(&format!("{:<14}", label.to_uppercase())), value);
+    println!("  {}  {}", dim(&format!("{:<14}", label.to_uppercase())), value);
 }
 
 /// A line of information, not an error: stdout, so a pipe keeps it in order.
 pub fn notice(message: &str) {
-    println!("{}", accent(message));
+    println!("{} {}", cyan("=>"), accent(message));
+}
+
+/// Yes/no as a person reads it, in the colour the answer deserves.
+pub fn ok(message: &str) {
+    println!("{} {}", green("ok"), message);
 }
 
 /// A failure: stderr, so it never contaminates a pipe, and with the server's own words
 /// rather than a code.
 pub fn failure(failure: &Failure) {
+    let mark = paint("fail", "\x1b[91m");
     match failure {
-        Failure::Usage(message) => eprintln!("ricespace: {message}"),
-        Failure::Transport(message) => eprintln!("ricespace: {message}"),
+        Failure::Usage(message) => eprintln!("{mark} ricespace: {message}"),
+        Failure::Transport(message) => eprintln!("{mark} ricespace: {message}"),
         Failure::Refused { status, code, message, details } => {
-            eprintln!("ricespace: {message} ({status} {code})");
+            eprintln!("{mark} ricespace: {message} {}({status} {code}){}", dim(""), RESET);
             for detail in details {
-                eprintln!("  · {detail}");
+                eprintln!("  {} {detail}", dim("·"));
             }
         }
     }
 }
 
-/// The raw response, for `--json`. Pretty, because a person reads it.
+/// The raw response, for `--json`. Pretty, because a person reads it, and untouched by
+/// colour because a machine reads it too.
 pub fn raw(value: &serde_json::Value) -> Result<(), Failure> {
     println!(
         "{}",
@@ -94,14 +160,14 @@ pub fn list(kind: &str, value: &serde_json::Value) {
     let items = match value.as_array() {
         Some(items) if !items.is_empty() => items,
         _ => {
-            println!("{}", dim(&kind.to_uppercase()));
-            println!("  (none)");
+            section(kind);
+            println!("  {}", dim("(none)"));
             println!();
             return;
         }
     };
 
-    println!("{}", dim(&kind.to_uppercase()));
+    section(kind);
 
     for item in items {
         match item {
@@ -122,7 +188,7 @@ pub fn list(kind: &str, value: &serde_json::Value) {
                     .collect();
 
                 match named.and_then(|key| fields.get(key)).and_then(serde_json::Value::as_str) {
-                    Some(name) => println!("  {}  {}", bright(name), dim(&rest.join("  "))),
+                    Some(name) => println!("  {}  {}", accent(name), dim(&rest.join("  "))),
                     None => println!("  {}", dim(&rest.join("  "))),
                 }
             }
@@ -156,7 +222,7 @@ pub fn page(page: &Page, rice: Option<&Showcase>) {
         rice_facts(rice);
     }
 
-    println!("{}", dim("THE PAGE"));
+    section("the page");
     key_value("revision", &page.version.to_string());
     key_value("changed", &page.updated_at);
     key_value("markup", &format!("{} bytes", page.document.len()));
@@ -168,6 +234,7 @@ pub fn page(page: &Page, rice: Option<&Showcase>) {
             page.limits.document_bytes, page.limits.html_bytes, page.limits.css_bytes
         ),
     );
+    println!();
 }
 
 /// The rice, if there is one. Says so plainly when there is not, because an empty rice is
@@ -181,16 +248,27 @@ pub fn rice(page: &Page, showcase: &Showcase) {
 
 fn rice_facts(showcase: &Showcase) {
     let headed = showcase.title.as_deref().unwrap_or("");
+    let empty = headed.is_empty() && showcase.filled.is_empty() && showcase.shots.is_empty();
 
-    if headed.is_empty() && showcase.filled.is_empty() && showcase.shots.is_empty() {
-        println!("{}", dim("THE RICE"));
-        println!("{}", accent("  empty — this is the main event on your page"));
-        println!("  `ricespace page rice --title …` to start it");
+    section("the rice");
+
+    if empty {
+        // An empty rice is the main event missing, so the art is the whole point here.
+        for line in RICE {
+            println!("  {}", magenta(line));
+        }
+        println!();
+        println!("  {}", paint("empty — this is the main event on your page", YELLOW));
+        println!("  {}", dim("`ricespace page rice --title …` to start it"));
         println!();
         return;
     }
 
-    println!("{}", dim("THE RICE"));
+    for line in RICE {
+        println!("  {}", magenta(line));
+    }
+    println!();
+
     if !showcase.url.is_empty() {
         key_value("on the page", &showcase.url);
     }

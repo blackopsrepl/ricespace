@@ -12,15 +12,19 @@ this is that, with a proper editor and an API.
 
 ## Try it
 
-1. **[Create a page](https://bathroom-police-vote-festivals.trycloudflare.com/registration/new)** — pick a username, that becomes your address.
+    make setup     # install gems, prepare the database
+    make serve     # http://localhost:3000
+
+Then:
+
+1. **Create a page** — pick a username, that becomes your address.
 2. You land in the **studio**. Write your markup and stylesheet; save is instant.
 3. Add your **rice** — a screenshot of your desktop and what is in it (hardware,
    window manager, bar, terminal, font, theme).
 4. Fill in the rest: a picture, blurbs, a song, friends, videos, demos, hardware.
 5. Share your address. People read it; only you write it.
 
-*That link is a temporary address for the running instance — see
-[Running it](#running-it).*
+`make` on its own lists everything.
 
 <img src="docs/assets/screens/profile.png" alt="A finished page: avatar, a rice, and the facts about it" width="720">
 
@@ -81,20 +85,15 @@ the Hosting section below.
 
 ### Hosting
 
-    ricespace.service         the Rails server (RAILS_ENV=production)
-    ricespace-tunnel.service  a cloudflared quick tunnel to that server
-    ricespace-url             prints the current public address
+The space is **not deployed at the moment** — it runs locally (`make serve`). When
+it is put back on a host it runs as two systemd units: the Rails server in
+production bound to loopback, and a cloudflared quick tunnel in front of it, with
+`ricespace-url` printing the address the tunnel was handed.
 
-Deployment is rsync, migrate, seed, restart — and it must not carry `storage/` (the
-database and the attached pictures) or `.bundle` (bundler's config, kept outside the
-app precisely so a redeploy cannot delete it):
+Deployment is `make deploy` (rsync, migrate, seed, restart). It must not carry
+`storage/` — the database and the attached pictures — or `.bundle`, bundler's
+config, which lives outside the app precisely so a redeploy cannot delete it.
 
-    rsync -az --delete --exclude '.git' --exclude 'cli/target' \
-      --exclude 'tmp/' --exclude 'log/' --exclude 'vendor/' \
-      --exclude 'storage/' --exclude '.bundle' \
-      -e ssh ./ <user>@<host>:<app-path>/
-    ssh <user>@<host> 'cd <app-path> && RAILS_ENV=production bundle exec rails \
-      db:migrate db:seed && sudo systemctl restart ricespace'
 
 ### How a page is kept safe
 

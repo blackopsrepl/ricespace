@@ -40,12 +40,13 @@ refused with a message that says so, and the cap is one number in one place.
 
 ## Next
 
-### 4. A named home
+### 4. Put it back on a host
 
-`ricespace-url` prints a random `*.trycloudflare.com` hostname that changes on
-restart. That is fine for showing the thing to somebody and wrong for a URL anyone
-writes down. The DMZ host already runs a named cloudflared tunnel; pointing a
-hostname at it is a dashboard entry and a decision about which domain, not code.
+The space ran on the DMZ VM behind a cloudflared quick tunnel, whose hostname
+changes on every restart — fine for showing it to somebody, wrong for a URL anyone
+writes down. It is local again while that is decided. The DMZ host already runs a
+named cloudflared tunnel, so a fixed address is a dashboard entry and a choice of
+domain, not code.
 
 ### 5. An installable CLI
 
