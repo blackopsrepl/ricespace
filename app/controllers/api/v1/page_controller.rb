@@ -31,6 +31,10 @@ module Api
         replace_builds(sent[:builds]) if sent.key?(:builds)
         replace_friends(sent[:friends]) if sent.key?(:friends)
         replace_blurbs(sent[:blurbs]) if sent.key?(:blurbs)
+        # The order of the rice's shots, as one list of ids. A folder holds one order, and
+        # the alternative is a `move` per picture — N requests to say one thing.
+        reorder_shots(sent[:shot_order]) if sent.key?(:shot_order)
+
         return if @errors.any? && fail_with(:unprocessable_content, "invalid_page",
           "some entries were refused", details: @errors)
 
@@ -60,6 +64,7 @@ module Api
           {
             username: current_user.username,
             url: profile_url(current_user.username),
+            picture: picture_presentation,
             links: current_user.stream_links.order(:created_at).map do |link|
               { platform: link.platform, url: link.url, title: link.title }
             end,
@@ -79,8 +84,44 @@ module Api
               }
             end,
             friends: current_user.friendships.in_order.map { |friendship| friendship.friend.username },
-            blurbs: current_user.blurbs.in_order.map { |blurb| { title: blurb.title, body: blurb.body } }
+            blurbs: current_user.blurbs.in_order.map { |blurb| { title: blurb.title, body: blurb.body } },
+            shots: shot_list
           }
+        end
+
+        # The rice's shots, in order, with the ids a folder keeps so it can name them again.
+        # Present here as well as on the showcase endpoint because a folder holds one page and
+        # should not need two reads to render it.
+        def shot_list
+          (current_user.showcase&.shots || []).map do |shot|
+            {
+              id: shot.id, caption: shot.caption, position: shot.position,
+              bytes: shot.image.attached? ? shot.image.blob.byte_size : nil,
+              url: shot.image.attached? ? rails_blob_url(shot.image.blob) : nil
+            }
+          end
+        end
+
+        def picture_presentation
+          picture = current_user.profile_picture
+          return nil if picture.nil? || !picture.image.attached?
+
+          { url: rails_blob_url(picture.image.blob), bytes: picture.image.blob.byte_size }
+        end
+
+        # Set the rice's shot order from a list of ids. Ids that are not this account's are
+        # ignored, and anything unnamed keeps its place afterwards: a folder that has drifted
+        # should converge rather than be refused.
+        def reorder_shots(raw)
+          ids = Array(raw).map(&:to_i)
+          owned = current_user.showcase&.shots&.to_a || []
+          return if owned.empty?
+
+          by_id = owned.index_by(&:id)
+          ordered = ids.filter_map { |id| by_id[id] }
+          ordered += owned.reject { |shot| ids.include?(shot.id) }
+
+          ordered.each_with_index { |shot, position| shot.update_column(:position, position) }
         end
 
         # Each replacement is whole-list and atomic per kind: the old entries go only

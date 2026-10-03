@@ -64,4 +64,34 @@ class ApiV1PageListsTest < ActionDispatch::IntegrationTest
     assert_equal [ "x" ], @user.blurbs.reload.map(&:title)
   end
 
+  test "the page reports the rice's shots so a folder can order them" do
+    @user.showcase = @user.build_showcase
+    @user.showcase.shots.create!(caption: "one").image.attach(
+      io: File.open(Rails.root.join("test", "fixtures", "files", "rice.png")), filename: "rice.png",
+      content_type: "image/png"
+    )
+
+    get api_v1_page_url, headers: @headers
+
+    assert_response :success
+    shot = response.parsed_body["page"]["shots"].sole
+
+    assert_equal "one", shot["caption"]
+    assert shot["id"].present?
+  end
+
+  test "the shot order can be set through the page endpoint too" do
+    @user.showcase = @user.build_showcase
+    ids = 2.times.map do |i|
+      shot = @user.showcase.shots.create!(caption: "shot #{i}")
+      shot.image.attach(io: File.open(Rails.root.join("test", "fixtures", "files", "rice.png")),
+        filename: "rice.png", content_type: "image/png")
+      shot.id
+    end
+
+    put api_v1_page_url, headers: @headers, params: { page: { shot_order: [ ids.last, ids.first ] } }
+
+    assert_response :success
+    assert_equal [ ids.last, ids.first ], @user.showcase.reload.shots.map(&:id)
+  end
 end
