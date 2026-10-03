@@ -13,6 +13,7 @@
 //! the data — it is the same way, typed by hand.
 
 mod config;
+mod folder;
 mod space;
 mod ui;
 
@@ -75,6 +76,69 @@ enum Command {
     /// Your page and your rice.
     #[command(subcommand)]
     Page(PageCommand),
+
+    /// Make a folder that is your space, and work in it.
+    #[command(subcommand)]
+    Folder(FolderCommand),
+}
+
+#[derive(Subcommand)]
+enum FolderCommand {
+    /// Write your space out as a folder of files.
+    Clone {
+        /// Where to put it. Defaults to a folder named after your account.
+        #[arg(default_value = ".")]
+        dir: String,
+
+        /// Write into a folder that already has files in it.
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Send the folder in the current directory to your space.
+    Push {
+        /// The folder. Defaults to the current directory.
+        #[arg(default_value = ".")]
+        dir: String,
+
+        /// Show what would change without sending anything.
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Send even if the page moved since you cloned it.
+        #[arg(long)]
+        force: bool,
+    },
+
+    /// Draw the folder locally, with the site's own renderer.
+    Preview {
+        /// The folder. Defaults to the current directory.
+        #[arg(default_value = ".")]
+        dir: String,
+
+        /// The port to serve the preview on.
+        #[arg(long, default_value_t = 4321)]
+        port: u16,
+
+        /// The address of the site doing the drawing (a running `make serve`).
+        #[arg(long, env = "RICESPACE_PREVIEW_URL")]
+        renderer: Option<String>,
+
+        /// Stage the folder for the renderer and exit — what `watch` uses.
+        #[arg(long, hide = true)]
+        stage_only: bool,
+    },
+
+    /// Push on every save. The loop: editor in one window, your page in another.
+    Watch {
+        /// The folder. Defaults to the current directory.
+        #[arg(default_value = ".")]
+        dir: String,
+
+        /// Seconds between checks.
+        #[arg(long, default_value_t = 2)]
+        every: u64,
+    },
 }
 
 #[derive(Subcommand)]
@@ -244,6 +308,139 @@ fn run(cli: &Cli, base: &str, token: &str) -> Result<(), space::Failure> {
 
             clap_complete::generate(*shell, &mut Cli::command(), "ricespace", &mut std::io::stdout());
             Ok(())
+        }
+
+        Command::Folder(FolderCommand::Clone { dir, force }) => {
+            let space = space::Space::new(base, token);
+            let target = std::path::PathBuf::from(dir);
+
+            // An existing folder is only written into when the person said so: `clone .` in a
+            // directory that already has a `page.html` would quietly replace it.
+            if target.join(folder::PAGE).exists() && !force {
+                return Err(space::Failure::Usage(format!(
+                    "{} already has a {} — pass --force to replace it",
+                    target.display(),
+                    folder::PAGE
+                )));
+            }
+
+            let wrote = folder::write_out(&target, &space)?;
+
+            ui::notice(&format!("Cloned into {}.", target.display()));
+            for name in wrote {
+                ui::key_value("wrote", &name);
+            }
+            ui::key_value("next", "edit the files, then `ricespace folder preview`");
+            Ok(())
+        }
+
+        Command::Folder(FolderCommand::Push { dir, dry_run, force }) => {
+            let space = space::Space::new(base, token);
+            let loaded = folder::Folder::read(std::path::Path::new(dir))?;
+
+            let changes = loaded.changes(&space)?;
+
+            if changes.is_empty() {
+                ui::ok("Nothing has changed since the last clone or push.");
+                return Ok(());
+            }
+
+            ui::notice("This folder would change:");
+            for line in &changes.summary {
+                ui::key_value("·", line);
+            }
+
+            if *dry_run {
+                ui::key_value("note", "--dry-run: nothing was sent");
+                return Ok(());
+            }
+
+            let done = loaded.push(&space, *force)?;
+            for line in done {
+                ui::ok(&line);
+            }
+            Ok(())
+        }
+
+        Command::Folder(FolderCommand::Preview { dir, port, renderer, stage_only }) => {
+            let loaded = folder::Folder::read(std::path::Path::new(dir))?;
+
+            // The preview is drawn by the site, not by this program: the rules it must show
+            // are the site's rules, and the way to be sure of that is to use them. So the
+            // folder is staged where the running site can read it, and the person is pointed
+            // at the address that renders it.
+            let app_root = preview_root()?;
+            let name = preview_name(&loaded, dir);
+            let staged = loaded.stage_for_preview(&app_root, &name)?;
+
+            ui::key_value("staged", &staged.display().to_string());
+
+            if *stage_only {
+                return Ok(());
+            }
+
+            let site = renderer
+                .clone()
+                .or_else(|| config::Config::load().ok().and_then(|c| c.url))
+                .or_else(|| std::env::var("RICESPACE_URL").ok())
+                .unwrap_or_else(|| "http://127.0.0.1:3000".to_string());
+
+            let url = format!("{}/preview/{}", site.trim_end_matches('/'), name);
+
+            ui::notice("Preview ready:");
+            ui::key_value("open", &url);
+            ui::key_value("port", &port.to_string());
+            ui::key_value(
+                "note",
+                &format!("drawn by {site} with the site's own cleaner — what survives there survives here"),
+            );
+
+            // If the site is not up, say so rather than print a URL that will not answer.
+            if !reaches(&url) {
+                ui::key_value("warning", &format!("{site} is not answering — start it with `make serve`"));
+            }
+
+            Ok(())
+        }
+
+        Command::Folder(FolderCommand::Watch { dir, every }) => {
+            let space = space::Space::new(base, token);
+            let path = std::path::Path::new(dir);
+
+            ui::notice(&format!("Watching {} — Ctrl-C to stop.", path.display()));
+            ui::key_value("every", &format!("{every}s"));
+            ui::key_value("what", "push on change, so saving a file puts it on your page");
+
+            // A cheap change signal: the modified time of every file in the folder, summed.
+            // Content hashing would be more precise and slower; a stamp is enough to notice a
+            // save, which is the whole job.
+            let mut stamp = folder_stamp(path);
+
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(*every));
+
+                let now = folder_stamp(path);
+                if now == stamp {
+                    continue;
+                }
+                stamp = now;
+
+                match folder::Folder::read(path).and_then(|folder| {
+                    // Preview first: the person is looking at the page while they edit, so the
+                    // folder has to be staged for the renderer on the same tick it is pushed.
+                    let app_root = preview_root()?;
+                    let name = preview_name(&folder, dir);
+                    folder.stage_for_preview(&app_root, &name)?;
+                    folder.push(&space, false)
+                }) {
+                    Ok(done) => {
+                        for line in done {
+                            ui::ok(&line);
+                        }
+                    }
+                    Err(failure) => ui::failure(&failure),
+                }
+            }
         }
 
         Command::Page(PageCommand::Show) => {
@@ -509,6 +706,107 @@ fn read_document(file: &str) -> Result<String, space::Failure> {
         .map_err(|error| space::Failure::Usage(format!("could not read {file}: {error}")))
 }
 
+/// Where the site keeps the folders it has been asked to preview.
+///
+/// The preview is drawn by the app, so the folder has to be somewhere the app can read. The
+/// app's own `tmp/preview` is that place, named by the same variable the server uses for its
+/// root, so a CLI run beside a checkout and a CLI pointed at a deployed app agree.
+fn preview_root() -> Result<std::path::PathBuf, space::Failure> {
+    if let Ok(root) = std::env::var("RICESPACE_APP_ROOT") {
+        return Ok(std::path::PathBuf::from(root).join("tmp").join("preview"));
+    }
+
+    // Walk up from the working directory looking for the app, which is where a person is
+    // standing when they are editing a page next to a checkout.
+    let mut here = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    loop {
+        if here.join("config").join("routes.rb").is_file() {
+            return Ok(here.join("tmp").join("preview"));
+        }
+        if !here.pop() {
+            break;
+        }
+    }
+
+    Err(space::Failure::Usage(
+        "could not find the ricespace app — run this from beside a checkout, or set RICESPACE_APP_ROOT".into(),
+    ))
+}
+
+/// The name a staged folder is served under. Derived from the folder itself so `preview` and
+/// `watch` in the same folder agree, and reduced to characters a URL can carry.
+fn preview_name(folder: &folder::Folder, dir: &str) -> String {
+    let raw = if folder.root.as_os_str().is_empty() || dir == "." {
+        std::env::current_dir()
+            .ok()
+            .and_then(|path| path.file_name().map(|name| name.to_string_lossy().to_string()))
+            .unwrap_or_else(|| "space".to_string())
+    } else {
+        folder
+            .root
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| "space".to_string())
+    };
+
+    let cleaned: String = raw
+        .chars()
+        .map(|character| if character.is_ascii_alphanumeric() || character == '-' || character == '_' { character } else { '-' })
+        .collect();
+
+    if cleaned.is_empty() { "space".to_string() } else { cleaned }
+}
+
+/// A cheap change signal for a folder: the modification times and sizes of its files, summed.
+/// Not a hash — a save is what this has to notice, and a save always moves a stamp.
+///
+/// The `.ricespace` sidecars are skipped, and that is not an optimisation: a push writes one,
+/// so counting them would make every push look like the change it just made, and `watch` would
+/// push in a loop of its own making.
+fn folder_stamp(path: &std::path::Path) -> u128 {
+    let mut stamp = 0u128;
+
+    let entries = match std::fs::read_dir(path) {
+        Ok(entries) => entries,
+        Err(_) => return stamp,
+    };
+
+    for entry in entries.flatten() {
+        if entry.file_name().to_string_lossy().ends_with(".ricespace") {
+            continue;
+        }
+
+        if let Ok(metadata) = entry.metadata() {
+            if !metadata.is_file() {
+                continue;
+            }
+
+            stamp = stamp.wrapping_add(metadata.len() as u128);
+            if let Some(since) = metadata
+                .modified()
+                .ok()
+                .and_then(|modified| modified.duration_since(std::time::UNIX_EPOCH).ok())
+            {
+                stamp = stamp.wrapping_add(since.as_nanos());
+            }
+        }
+    }
+
+    stamp
+}
+
+/// Whether an address answers at all. Used only to warn: a preview that will not render is
+/// still worth staging, because the person may be about to start the site.
+fn reaches(url: &str) -> bool {
+    ureq::Agent::config_builder()
+        .http_status_as_error(false)
+        .build()
+        .new_agent()
+        .get(url)
+        .call()
+        .is_ok()
+}
+
 /// Which revision a push should be built on.
 #[derive(Debug, PartialEq)]
 enum VersionPlan {
@@ -573,6 +871,26 @@ mod tests {
     #[test]
     fn a_push_with_no_revision_and_no_force_is_refused_before_it_is_sent() {
         assert!(resolve_version(false, None).is_err());
+    }
+
+    #[test]
+    fn a_push_writing_its_sidecar_is_not_read_back_as_a_change() {
+        // A push writes `page.html.ricespace`. If the stamp counted it, every push would look
+        // like the change it just made and `watch` would push in a loop of its own making.
+        let dir = std::env::temp_dir().join(format!("ricespace-stamp-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("page.html"), "<p>hi</p>").unwrap();
+
+        let before = folder_stamp(&dir);
+        std::fs::write(dir.join("page.html.ricespace"), r#"{"version":2,"username":"x"}"#).unwrap();
+
+        assert_eq!(before, folder_stamp(&dir), "the sidecar must not move the stamp");
+
+        // A real edit still does.
+        std::fs::write(dir.join("page.html"), "<p>hi there</p>").unwrap();
+        assert_ne!(before, folder_stamp(&dir), "an edit must move the stamp");
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

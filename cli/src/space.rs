@@ -9,6 +9,7 @@
 
 use serde::Deserialize;
 use serde_json::Value;
+use std::path::Path;
 
 /// A failure the user has to hear about, in the words they need.
 #[derive(Debug)]
@@ -24,6 +25,13 @@ pub enum Failure {
 pub struct Space {
     base: String,
     token: String,
+}
+
+impl Space {
+    /// The address this client speaks to. Public because a folder records it.
+    pub fn base(&self) -> &str {
+        &self.base
+    }
 }
 
 /// The account a token speaks for.
@@ -189,11 +197,181 @@ impl Space {
         self.send_text("GET", "/agents.md")
     }
 
+    /// Upload one picture. A rice shot, a hardware photo, or the account's own picture.
+    ///
+    /// Multipart, because that is what an upload is; the body is built here rather than by a
+    /// client library so the dependency list stays what it is (ureq, serde, toml, clap).
+    /// The account's quota and the file's own ceiling are the server's to enforce — this
+    /// side sends the bytes and reports what the server said.
+    pub fn upload_image(
+        &self,
+        path: &Path,
+        kind: &str,
+        caption: Option<&str>,
+        record: Option<&str>,
+    ) -> Result<Value, Failure> {
+        let bytes = std::fs::read(path)
+            .map_err(|error| Failure::Usage(format!("could not read {}: {error}", path.display())))?;
+
+        let filename = path
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| "upload".to_string());
+
+        let content_type = match path.extension().and_then(|e| e.to_str()).map(str::to_lowercase).as_deref() {
+            Some("png") => "image/png",
+            Some("jpg") | Some("jpeg") => "image/jpeg",
+            Some("gif") => "image/gif",
+            Some("webp") => "image/webp",
+            Some("avif") => "image/avif",
+            _ => "application/octet-stream",
+        };
+
+        let boundary = format!("ricespace-{}", std::process::id());
+        let mut body: Vec<u8> = Vec::with_capacity(bytes.len() + 512);
+
+        let mut field = |name: &str, value: &str| {
+            body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+            body.extend_from_slice(
+                format!("Content-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n").as_bytes(),
+            );
+        };
+
+        field("kind", kind);
+        if let Some(caption) = caption {
+            field("caption", caption);
+        }
+        if let Some(record) = record {
+            field("record", record);
+        }
+
+        // The file itself is the last part, and carries its own filename and type.
+        body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+        body.extend_from_slice(
+            format!(
+                "Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\nContent-Type: {content_type}\r\n\r\n"
+            )
+            .as_bytes(),
+        );
+        body.extend_from_slice(&bytes);
+        body.extend_from_slice(b"\r\n");
+        body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+
+        let text = self.send_bytes(
+            "POST",
+            "/api/v1/images",
+            body,
+            &format!("multipart/form-data; boundary={boundary}"),
+        )?;
+
+        serde_json::from_str(&text)
+            .map_err(|error| Failure::Transport(format!("the space answered with something unreadable: {error}")))
+    }
+
+    /// Reorder the rice's shots, whole. One request rather than one per picture, because a
+    /// folder holds one order.
+    pub fn set_shot_order(&self, ids: &[i64]) -> Result<Value, Failure> {
+        let body = serde_json::json!({ "kind": "shot", "ids": ids });
+        let text = self.send_bytes(
+            "PATCH",
+            "/api/v1/images/order",
+            body.to_string().into_bytes(),
+            "application/json",
+        )?;
+
+        serde_json::from_str(&text)
+            .map_err(|error| Failure::Transport(format!("the space answered with something unreadable: {error}")))
+    }
+
+    /// A picture's bytes, from a URL the space served. Used by `clone` to bring the pictures
+    /// down into the folder, so the folder holds the page rather than a list of links to it.
+    pub fn fetch_bytes(&self, url: &str) -> Result<Vec<u8>, Failure> {
+        let agent = ureq::Agent::config_builder()
+            .http_status_as_error(false)
+            .build()
+            .new_agent();
+
+        let response = agent.get(url).call().map_err(|error| Failure::Transport(format!("could not fetch {url}: {error}")))?;
+
+        let status = response.status().as_u16();
+        if status >= 400 {
+            return Err(Failure::Transport(format!("{url} answered {status}")));
+        }
+
+        let mut bytes = Vec::new();
+        std::io::Read::read_to_end(&mut response.into_body().into_reader(), &mut bytes)
+            .map_err(|error| Failure::Transport(format!("could not read {url}: {error}")))?;
+
+        Ok(bytes)
+    }
+
     fn send(&self, method: &str, path: &str, body: Option<Value>) -> Result<Value, Failure> {
         let text = self.send_text_with(method, path, body)?;
 
         serde_json::from_str(&text)
             .map_err(|error| Failure::Transport(format!("the space answered with something unreadable: {error}")))
+    }
+
+    /// A request whose body is bytes rather than JSON — an upload, or a JSON body built by
+    /// hand for the multipart path. Kept separate from `send_text_with` because a multipart
+    /// body must not be re-encoded: the boundary and the file's own bytes have to arrive
+    /// exactly as written.
+    fn send_bytes(
+        &self,
+        method: &str,
+        path: &str,
+        body: Vec<u8>,
+        content_type: &str,
+    ) -> Result<String, Failure> {
+        if self.base.is_empty() {
+            return Err(Failure::Usage(
+                "no space configured — run `ricespace login`, or pass --url".into(),
+            ));
+        }
+
+        if self.token.is_empty() {
+            return Err(Failure::Usage(
+                "no token configured — run `ricespace login`, or pass --token".into(),
+            ));
+        }
+
+        let url = format!("{}{}", self.base, path);
+        let agent = ureq::Agent::config_builder()
+            .http_status_as_error(false)
+            .build()
+            .new_agent();
+
+        let authorization = format!("Bearer {}", self.token);
+        let response = match method {
+            "POST" => agent
+                .post(&url)
+                .header("Authorization", &authorization)
+                .header("Content-Type", content_type)
+                .send(body),
+            "PATCH" => agent
+                .patch(&url)
+                .header("Authorization", &authorization)
+                .header("Content-Type", content_type)
+                .send(body),
+            "DELETE" => agent.delete(&url).header("Authorization", &authorization).call(),
+            other => return Err(Failure::Usage(format!("unsupported method {other}"))),
+        };
+
+        match response {
+            Ok(response) => {
+                let status = response.status().as_u16();
+                let text = response.into_body().read_to_string().map_err(|error| {
+                    Failure::Transport(format!("could not read the answer: {error}"))
+                })?;
+
+                if status >= 400 {
+                    return Err(self.refusal(status, &text));
+                }
+
+                Ok(text)
+            }
+            Err(error) => Err(Failure::Transport(format!("could not reach {}: {error}", self.base))),
+        }
     }
 
     fn send_text(&self, method: &str, path: &str) -> Result<String, Failure> {
