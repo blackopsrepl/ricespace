@@ -42,7 +42,14 @@ class User < ApplicationRecord
   has_many :friendships, dependent: :destroy
   has_many :friends, through: :friendships, source: :friend
   has_many :blurbs, dependent: :destroy
+
+  # The comments *on* this account's page, and the comments this account left on other
+  # people's. Both have to go with the account, and only one of them is obvious: the first
+  # is the page's own wall, the second is every wall this person ever wrote on. Without the
+  # second, closing an account fails on a foreign key — the comment it left behind points
+  # at a row that no longer exists.
   has_many :comments, dependent: :destroy
+  has_many :written_comments, class_name: "Comment", foreign_key: :author_id, dependent: :destroy
 
   # The videos and streams shown on this account's page. Links to somebody else's
   # service — nothing here is hosted by this site.

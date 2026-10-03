@@ -36,6 +36,37 @@ class AccountLifecycleTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_session_path
   end
 
+  test "an account that commented on somebody else's wall can still be closed" do
+    # The comment it left points at its author from the other side, and nothing about
+    # "the comments on my page" covers it. Without the `written_comments` association this
+    # fails on a foreign key, so an account that had ever written on a wall could not be
+    # closed at all — which is the worst version of this bug, because the person hitting it
+    # is the one trying to leave.
+    other = User.create!(username: "somebody", email_address: "s@example.com", password: "correct horse battery")
+    @user.written_comments.create!(user: other, body: "a note on your wall")
+
+    sign_in_as @user
+
+    # Two comments go: the one this account wrote on their wall, and the one the setup
+    # already put on this account's own page.
+    assert_difference -> { User.count } => -1, -> { Comment.count } => -2 do
+      delete account_path
+    end
+
+    assert_redirected_to root_path
+  end
+
+  test "a comment somebody left on a closed page's wall goes with the page" do
+    commenter = User.create!(username: "commenter", email_address: "cm@example.com", password: "correct horse battery")
+    commenter.written_comments.create!(user: @user, body: "nice page")
+
+    sign_in_as @user
+
+    assert_difference -> { Comment.count } => -2 do
+      delete account_path
+    end
+  end
+
   test "the site's own account cannot be closed" do
     sign_in_as ron
 
