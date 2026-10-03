@@ -144,13 +144,13 @@ with — the three real pages, one page wearing each layout, two that write thei
 instead, and enough friends, comments and ratings for the directory and the ranking to
 have something in them:
 
-    bin/rails demo:populate   # write the demo spaces
-    bin/rails demo:reset      # erase them and write them again
+    bin/rails demo:populate   # refresh the curated demo content
 
-It is deliberately not part of `db:seeds`: seeding an install should give you a site with
-its owner account on it, not fifteen strangers. It is safe to run more than once, and it is
-written against the layouts and the page anatomy rather than against fixed text, so adding
-a layout and running it again puts a page behind that layout too.
+It is deliberately not part of `db:seeds`. Population refreshes the named demo pages,
+adds missing content, and leaves account IDs, credentials and uploaded pictures alone.
+Repeating it does not duplicate lists or votes. A failed run rolls back its database
+changes. The content lives in `lib/demo_site/spaces.rb`; its theme assignments cover the
+shipped layouts and are checked by the test suite.
 
 The live instance runs as two systemd units — the Rails server on loopback and a
 cloudflared quick tunnel in front of it — so the public address changes when the

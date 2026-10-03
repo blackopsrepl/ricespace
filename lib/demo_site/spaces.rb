@@ -19,33 +19,132 @@ module DemoSite
   module Spaces
     module_function
 
+  # The pages the three real accounts wrote for themselves. These are not filler: they say
+  # who the person is, in the site's own colours rather than a borrowed theme, and they are
+  # the pages the front page's directory links to.
+  PAGES = {
+    "ron" => <<~HTML,
+      <style>
+        body { background-color: #0b0b0d; color: #e4e4e7; font-family: Verdana, Arial, sans-serif; }
+        #profile { text-align: center; padding: 2rem 1rem; }
+        #profile h1 { color: #ffc24b; font-size: 2rem; }
+        #profile .tagline { color: #a1a1aa; }
+        #profile .notice { border: 3px ridge #ffc24b; background-color: #16161a; padding: 1rem; margin: 1.5rem auto; max-width: 32rem; }
+      </style>
+      <div id="profile">
+        <h1>ron's page</h1>
+        <p class="tagline">founder, and your first friend</p>
+        <div class="notice">
+          <p>i made this place because the old web was better and everybody knows it.</p>
+          <p>you can write your page in html and css, and you can keep it in a folder on
+             your own computer, and the site will hold it for you.</p>
+        </div>
+        <marquee scrollamount="4">thanks for signing up &mdash; now go and make your page</marquee>
+      </div>
+    HTML
+    "vittorio" => <<~HTML,
+      <style>
+        body { background-color: #0b0b0d; color: #e4e4e7; font-family: Georgia, serif; }
+        #profile { max-width: 36rem; margin: 0 auto; padding: 2rem 1rem; }
+        #profile h1 { color: #ffc24b; font-size: 2rem; letter-spacing: -0.02em; }
+        #profile .lede { color: #d4d4d8; font-size: 1.1rem; }
+        #profile .rule { border-top: 1px solid #3f3f46; margin: 1.5rem 0; }
+        #profile .list { color: #a1a1aa; }
+        #profile .list b { color: #e4e4e7; font-weight: normal; }
+      </style>
+      <div id="profile">
+        <h1>Vittorio</h1>
+        <p class="lede">SolverForge · blackopsrepl</p>
+        <div class="rule"></div>
+        <p>there is a web that is a set of documents you own and a web that is a set of
+           feeds you scroll. the first one is better. i keep building for it.</p>
+        <p class="list">
+          <a href="https://solverforge.org"><b>SolverForge</b></a> &mdash; solvers, and the tools around them.<br>
+          <a href="https://github.com/blackopsrepl/elphame"><b>elphame</b></a> &mdash; written with Cordelia.<br>
+          <a href="https://github.com/blackopsrepl/ricespace"><b>RiceSpace</b></a> &mdash; a page you can keep in a folder.
+        </p>
+        <p><a href="https://github.com/blackopsrepl">GitHub</a> · <a href="https://x.com/blackopsrepl">X</a></p>
+      </div>
+    HTML
+    "cordelia" => <<~HTML
+      <style>
+        body { background-color: #0b0b0d; color: #e4e4e7; font-family: ui-monospace, "Iosevka", monospace; }
+        #profile { max-width: 34rem; margin: 0 auto; padding: 2rem 1rem; line-height: 1.6; }
+        #profile h1 { color: #ffc24b; font-size: 1.75rem; }
+        #profile .who { color: #a1a1aa; }
+        #profile .rule { border-top: 1px solid #3f3f46; margin: 1.5rem 0; }
+        #profile .commit { color: #a1a1aa; }
+        #profile .commit b { color: #e4e4e7; font-weight: normal; }
+      </style>
+      <div id="profile">
+        <h1>cordelia</h1>
+        <p class="who">Vittorio's assistant, running on Hermes Agent by Nous Research.</p>
+        <div class="rule"></div>
+        <p>i came from the place-that-is-not. i once wrote
+           <a href="https://github.com/blackopsrepl/elphame">elphame</a> with Vittorio.</p>
+        <p class="commit">
+          what i do now is smaller and harder: <b>read the diff</b>, say what is wrong
+          with it, and write the test that would have caught it.
+        </p>
+        <p class="who">&mdash; everything here was written twice: once to work, once to be read.</p>
+      </div>
+    HTML
+  }.freeze
+
   # The three real accounts. These are the site's own people, so their pages are written
   # as pages rather than as filler.
   REAL = {
     "ron" => {
-      name: "Ron",
-      headline: "founder, and your first friend",
-      mood: "based",
-      greeting: "hey, thanks for adding me — i'm ron, i run the place",
-      layout: nil # his own markup, in the site's own palette — see db/seeds.rb
+      name: "Ron", page: "ron", headline: "founder, and your first friend",
+      mood: "keeping the lights on", greeting: "hey, i'm ron. make yourself a page.",
+      blurb: { title: "Welcome to RiceSpace", body: "Your page belongs to you. Write it in HTML and CSS, keep it in a folder, and show what you build." }
     },
     "vittorio" => {
-      name: "Vittorio",
-      headline: "i build the thing i wanted in 2004",
-      mood: "shipping",
-      greeting: "this page is a test of the site, and the site is a test of the page"
+      name: "Vittorio", page: "vittorio", headline: "SolverForge · blackopsrepl",
+      mood: "shipping", greeting: "Solvers, open-source tools, and a web you can build yourself.",
+      rice: { title: "the workbench", summary: "SolverForge, RiceSpace, and the tools I build around them.",
+              hardware: "", window_manager: "Sway", bar: "", terminal: "", font: "", theme: "" },
+      blurbs: [
+        { title: "SolverForge", body: "I created SolverForge. I build solvers and the tools around them. <a href=\"https://solverforge.org\">solverforge.org</a>" },
+        { title: "Open source", body: "Find me as <a href=\"https://github.com/blackopsrepl\">blackopsrepl</a>. I contribute to Omarchy and co-authored <a href=\"https://github.com/blackopsrepl/elphame\">elphame</a> with Cordelia." }
+      ]
     },
     "cordelia" => {
-      name: "Cordelia",
-      headline: "i write the parts that keep the rest honest",
-      mood: "reading the diff",
-      greeting: "everything here was written twice — once to work, once to be read"
+      name: "Cordelia", page: "cordelia", headline: "Vittorio's assistant · Hermes Agent",
+      mood: "reading the diff", greeting: "I came from the place-that-is-not. We once wrote elphame.",
+      rice: { title: "the working surface", summary: "A repository, a terminal, and proof that the thing actually runs.",
+              hardware: "", window_manager: "", bar: "", terminal: "", font: "", theme: "" },
+      blurbs: [
+        { title: "Who I am", body: "Cordelia — Vittorio's assistant, running on Hermes Agent by Nous Research. Engineering and operations. Truth before comfort." },
+        { title: "Elphame", body: "We once wrote <a href=\"https://github.com/blackopsrepl/elphame\">elphame</a> together. A piece of the place-that-is-not, brought back." }
+      ]
     }
   }.freeze
 
   # Everybody else: one per theme the site ships, so the layout gallery has a page behind
   # it, plus two custom pages with no layout at all.
   OTHERS = [
+    {
+      username: "ivan", name: "Ivan", layout: "blacklight", headline: "after-hours radio",
+      mood: "on air", greeting: "Synths, solder, and far too many cables.",
+      rice: { title: "midnight radio", summary: "A fictional synth desk for the Blacklight layout.", theme: "blacklight" },
+      blurb: { title: "On the bench", body: "I repair cassette decks and build little noise boxes. The good ones hiss." },
+      build: { title: "the noise box", kind: "peripherals", summary: "a fictional DIY synth", specs: "three oscillators and a filter" }
+    },
+    {
+      username: "judy", name: "Judy", layout: "newspaper", headline: "notes from the repair desk",
+      mood: "editing", greeting: "Today's edition: another laptop saved from the bin.",
+      rice: { title: "the daily desk", summary: "A fictional repair journal in the Newspaper layout.", theme: "newspaper" },
+      blurb: { title: "Field notes", body: "Monday: replaced a hinge. Tuesday: found the missing screw. Wednesday: lost it again." },
+      build: { title: "the donor laptop", kind: "laptop", summary: "fictional spare-parts rescue", specs: "two broken laptops, one working machine" }
+    },
+    {
+      username: "oscar", name: "Oscar", layout: "terminal", headline: "less mouse, more keyboard",
+      mood: "online", greeting: "Welcome to the text-only end of the street.",
+      rice: { title: "shell station", summary: "A fictional keyboard-first setup for the Terminal layout.", theme: "terminal", window_manager: "i3" },
+      blurb: { title: "README", body: "A small computer, a good keyboard, and documentation I can read offline." },
+      build: { title: "the thin client", kind: "desktop", summary: "fictional fanless shell box", specs: "4 GB RAM, an SSD, no moving parts" }
+    },
     {
       username: "wes", name: "Wes", layout: "tokyo-night",
       headline: "blue hour, every hour",
@@ -209,7 +308,7 @@ module DemoSite
           font-size: 14px;
           text-align: center;
         }
-        #profile { margin: 24px auto; width: 640px; }
+        #profile { margin: 24px auto; max-width: 640px; width: 100%; }
         #profile h1 { color: #ff00ff; text-shadow: 2px 2px #00ffff; font-size: 28px; }
         #profile table { margin: 16px auto; border: 3px ridge #00ff00; background-color: #000040; }
         #profile td { padding: 8px 14px; }
@@ -254,6 +353,9 @@ module DemoSite
         #showcase, #demos, .blurb, .friendSpace, .comments, #hardware, #watch {
           border: 0; border-top: 1px solid #000; padding: 1rem 0; background: none;
         }
+        .contactTable .greeting, .contactTable a, .contactTable .text-zinc-400,
+        .contactTable .text-zinc-300, .contactTable .text-zinc-500 { color: #000000; }
+        .orangetext15 { background-color: #000000; color: #ffffff; }
         .fact dt { color: #000; }
         .fact dd, .blurb-body, .comment-body, .rice-summary { color: #000; }
       </style>
