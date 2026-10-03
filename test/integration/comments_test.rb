@@ -2,7 +2,11 @@
 
 require "test_helper"
 
-# Comments are signed in only, and answerable: every comment has an account behind it.
+# Writing on what somebody posted.
+#
+# Comments are signed in only, and answerable: every comment has an account behind it. The
+# second half is the change — a comment can be left on the rice, a build, a demo, rather than
+# only on the page, so an answer lands where the thing it answers is.
 class CommentTest < ActionDispatch::IntegrationTest
   setup do
     @owner = User.create!(username: "vittorio", email_address: "v@example.com",
@@ -43,7 +47,7 @@ class CommentTest < ActionDispatch::IntegrationTest
 
   test "a comment with no account behind it cannot be saved" do
     assert_raises(ActiveRecord::NotNullViolation) do
-      Comment.new(user_id: @owner.id, body: "hi").save!(validate: false)
+      Comment.new(commentable: @owner, body: "hi").save!(validate: false)
     end
   end
 
@@ -51,8 +55,8 @@ class CommentTest < ActionDispatch::IntegrationTest
     get profile_path(@owner)
 
     assert_response :success
-    assert_no_match(/id="comment-form"/, response.body)
-    assert_match "to post on this wall", response.body
+    assert_no_match(/comments-form/, response.body)
+    assert_match "to write on this", response.body
   end
 
   test "the page shows the box to a signed-in account" do
@@ -60,8 +64,61 @@ class CommentTest < ActionDispatch::IntegrationTest
 
     get profile_path(@owner)
 
-    assert_match(/id="comment-form"/, response.body)
-    assert_match "write on @vittorio&#39;s wall as @cordelia", response.body
+    assert_match(/comments-form/, response.body)
+    assert_match "write on this as @cordelia", response.body
+  end
+
+  # ── writing on what was posted, not only on the page ─────────────────────────────────────
+
+  test "an account can write on somebody's rice, and it lands on the rice" do
+    rice = @owner.create_showcase!(title: "my desk")
+    sign_in_as @friend
+
+    assert_difference -> { Comment.count } => 1 do
+      post profile_post_comments_path(@owner, "showcase", rice.id),
+        params: { comment: { body: "what is the wallpaper" } }
+    end
+
+    assert_equal rice, Comment.last.commentable, "the comment answers the rice, not the page"
+    assert_equal 1, rice.comments.count
+    assert_equal 0, @owner.comments.count, "and it is not also on the page's wall"
+  end
+
+  test "writing on somebody else's post on this page is refused" do
+    rice = @owner.create_showcase!(title: "my desk")
+    elsewhere = User.create!(username: "somebody", email_address: "s@example.com",
+      password: "correct horse battery")
+    other_rice = elsewhere.create_showcase!(title: "not this page")
+    sign_in_as @friend
+
+    assert_no_difference -> { Comment.count } do
+      post profile_post_comments_path(@owner, "showcase", other_rice.id),
+        params: { comment: { body: "wrong page" } }
+    end
+
+    assert_redirected_to profile_path(@owner, anchor: "comments")
+  end
+
+  test "the page's own wall and a post's wall are separate" do
+    rice = @owner.create_showcase!(title: "my desk")
+    sign_in_as @friend
+
+    post profile_comments_path(@owner), params: { comment: { body: "on the page" } }
+    post profile_post_comments_path(@owner, "showcase", rice.id),
+      params: { comment: { body: "on the rice" } }
+
+    assert_equal [ "on the page" ], @owner.wall.map(&:body)
+    assert_equal [ "on the rice" ], rice.wall.map(&:body)
+  end
+
+  test "the owner of the post can remove a comment somebody left on it" do
+    rice = @owner.create_showcase!(title: "my desk")
+    comment = rice.comments.create!(author: @friend, body: "not this")
+    sign_in_as @owner
+
+    assert_difference -> { Comment.count } => -1 do
+      delete comment_path(comment)
+    end
   end
 
   private

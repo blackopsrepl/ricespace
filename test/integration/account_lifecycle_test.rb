@@ -43,7 +43,7 @@ class AccountLifecycleTest < ActionDispatch::IntegrationTest
     # closed at all — which is the worst version of this bug, because the person hitting it
     # is the one trying to leave.
     other = User.create!(username: "somebody", email_address: "s@example.com", password: "correct horse battery")
-    @user.written_comments.create!(user: other, body: "a note on your wall")
+    @user.written_comments.create!(commentable: other, body: "a note on your wall")
 
     sign_in_as @user
 
@@ -58,7 +58,7 @@ class AccountLifecycleTest < ActionDispatch::IntegrationTest
 
   test "a comment somebody left on a closed page's wall goes with the page" do
     commenter = User.create!(username: "commenter", email_address: "cm@example.com", password: "correct horse battery")
-    commenter.written_comments.create!(user: @user, body: "nice page")
+    commenter.written_comments.create!(commentable: @user, body: "nice page")
 
     sign_in_as @user
 
