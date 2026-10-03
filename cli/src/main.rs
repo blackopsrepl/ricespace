@@ -66,6 +66,12 @@ enum Command {
     /// What the API can do to your page, as it is served to agents.
     Contract,
 
+    /// Shell completions for this command.
+    Completions {
+        /// bash, zsh or fish.
+        shell: clap_complete::Shell,
+    },
+
     /// Your page and your rice.
     #[command(subcommand)]
     Page(PageCommand),
@@ -227,6 +233,13 @@ fn run(cli: &Cli, base: &str, token: &str) -> Result<(), space::Failure> {
 
         Command::Contract => {
             print!("{}", space::Space::new(base, token).contract()?);
+            Ok(())
+        }
+
+        Command::Completions { shell } => {
+            use clap::CommandFactory;
+
+            clap_complete::generate(*shell, &mut Cli::command(), "ricespace", &mut std::io::stdout());
             Ok(())
         }
 
