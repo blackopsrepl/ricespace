@@ -22,6 +22,12 @@ Rails.application.routes.draw do
   resource :session, only: [ :new, :create, :destroy ]
   resource :studio, only: [ :show, :update ], controller: "studio"
   patch "studio/song", to: "studio#update_song", as: :update_song_studio
+
+  # The showcase: the rice. Edited as one thing, because it is one thing.
+  resource :showcase, only: [ :edit, :update ], controller: "showcases"
+  post "showcase/shots", to: "showcases#add_shot", as: :showcase_shots
+  delete "showcase/shots/:id", to: "showcases#remove_shot", as: :showcase_shot
+  patch "showcase/shots/:id/move", to: "showcases#move_shot", as: :move_showcase_shot
   resource :account, only: [ :update ], controller: "accounts"
   resources :agent_tokens, only: [ :create, :destroy ]
   resources :friendships, only: [ :create, :destroy ] do

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_070125) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_070126) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -103,6 +103,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_070125) do
     t.index ["user_id"], name: "index_profiles_on_user_id", unique: true
   end
 
+  create_table "showcase_shots", force: :cascade do |t|
+    t.integer "showcase_id", null: false
+    t.string "caption"
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["showcase_id", "position"], name: "index_showcase_shots_on_showcase_id_and_position"
+    t.index ["showcase_id"], name: "index_showcase_shots_on_showcase_id"
+  end
+
+  create_table "showcases", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.string "title"
+    t.string "summary"
+    t.text "details", default: "", null: false
+    t.string "hardware"
+    t.string "window_manager"
+    t.string "bar"
+    t.string "terminal"
+    t.string "font"
+    t.string "theme"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_showcases_on_user_id", unique: true
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "email_address", null: false
     t.string "password_digest", null: false
@@ -127,4 +153,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_070125) do
   add_foreign_key "friendships", "users", column: "friend_id"
   add_foreign_key "profile_pictures", "users"
   add_foreign_key "profiles", "users"
+  add_foreign_key "showcase_shots", "showcases"
+  add_foreign_key "showcases", "users"
 end

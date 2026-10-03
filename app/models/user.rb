@@ -21,6 +21,7 @@ class User < ApplicationRecord
 
   has_one :profile, dependent: :destroy
   has_one :profile_picture, dependent: :destroy
+  has_one :showcase, dependent: :destroy
   has_many :agent_tokens, dependent: :destroy
 
   # This account's page: the people on its friends list, the blocks of text its

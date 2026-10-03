@@ -1,0 +1,141 @@
+<% content_for :title, "Your showcase — RiceSpace" %>
+
+<%# The editor for the rice. One form for the facts and the words, and separate small
+    forms for the shots, so a big screenshot is not re-uploaded to change a line. The
+    vocabulary is the site's: labels, rules, facts, no cards. %>
+
+<header class="mb-10 flex flex-wrap items-end justify-between gap-6">
+  <div>
+    <h1 class="text-3xl font-semibold tracking-tight">Your showcase</h1>
+    <p class="mt-3 max-w-2xl text-zinc-400">
+      This is the main event on your page. A screenshot of the setup, a line about it,
+      and the facts somebody would ask about — the machine, the bar, the terminal, the
+      font, the theme.
+    </p>
+  </div>
+  <p class="flex flex-wrap gap-2">
+    <%= link_to "Your page", profile_path(current_user), class: "btn" %>
+    <%= link_to "Studio", studio_path, class: "btn" %>
+  </p>
+</header>
+
+<section class="mb-14">
+  <h2 class="rule">
+    <span class="label">Shots</span>
+    <span class="label text-zinc-600">the first one leads your page</span>
+  </h2>
+
+  <% if @shots.any? %>
+    <ol class="mt-6 space-y-px border border-zinc-800">
+      <% @shots.each_with_index do |shot, index| %>
+        <li class="flex flex-wrap items-center gap-4 bg-zinc-950 p-3">
+          <span class="label w-8"><%= index.zero? ? "lead" : format("%02d", index) %></span>
+
+          <% if shot.image.attached? %>
+            <%= image_tag shot.image.variant(:thumb), alt: shot.caption.presence || "",
+                  class: "h-16 w-24 border border-zinc-800 object-cover" %>
+          <% else %>
+            <span class="flex h-16 w-24 items-center justify-center border border-dashed border-zinc-800">
+              <span class="label">broken</span>
+            </span>
+          <% end %>
+
+          <div class="min-w-0 flex-1">
+            <p class="truncate text-sm text-zinc-300"><%= shot.caption.presence || "(no caption)" %></p>
+            <% if shot.image.attached? %>
+              <p class="label mt-1"><%= number_to_human_size(shot.image.blob.byte_size) %></p>
+            <% end %>
+          </div>
+
+          <div class="flex items-center gap-1">
+            <%= button_to "↑", move_showcase_shot_path(shot, direction: "up"), method: :patch,
+                  class: "btn px-2 py-1", disabled: index.zero? %>
+            <%= button_to "↓", move_showcase_shot_path(shot, direction: "down"), method: :patch,
+                  class: "btn px-2 py-1", disabled: index == @shots.size - 1 %>
+            <%= button_to "Remove", showcase_shot_path(shot), method: :delete, class: "btn px-2 py-1" %>
+          </div>
+        </li>
+      <% end %>
+    </ol>
+  <% else %>
+    <p class="mt-6 border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">
+      No shots yet. A showcase without a picture is not a rice — add one below.
+    </p>
+  <% end %>
+
+  <%= form_with url: showcase_shots_path, multipart: true, class: "mt-6 max-w-2xl" do |form| %>
+    <div class="grid gap-3 sm:grid-cols-2">
+      <label class="block">
+        <span class="label">screenshot</span>
+        <%= form.file_field :image, name: "showcase_shot[image]", accept: "image/*", required: true,
+              class: "field mt-2 file:mr-3 file:border file:border-zinc-700 file:bg-zinc-900 file:px-2 file:py-1 file:text-zinc-200" %>
+      </label>
+      <label class="block">
+        <span class="label">caption</span>
+        <%= form.text_field :caption, name: "showcase_shot[caption]", placeholder: "what this shot shows",
+              maxlength: ShowcaseShot::MAX_CAPTION_LENGTH, class: "field mt-2" %>
+      </label>
+    </div>
+    <%= form.submit "Add shot", class: "btn mt-4" %>
+  <% end %>
+</section>
+
+<section>
+  <h2 class="rule">
+    <span class="label">The rice, described</span>
+  </h2>
+
+  <%= form_with model: @showcase, url: showcase_path, class: "mt-6" do |form| %>
+    <% if @showcase.errors.any? %>
+      <ul class="mb-5 space-y-px border border-red-900 bg-red-950 p-3 text-sm text-red-200">
+        <% @showcase.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    <% end %>
+
+    <div class="grid max-w-3xl gap-5">
+      <label class="block">
+        <span class="label">title</span>
+        <%= form.text_field :title, placeholder: "e.g. Catppuccin on the Framework",
+              maxlength: Showcase::MAX_LINE_LENGTH, class: "field mt-2" %>
+        <span class="label mt-2 block text-zinc-600">one line, shown next to the picture</span>
+      </label>
+
+      <label class="block">
+        <span class="label">summary</span>
+        <%= form.text_field :summary, placeholder: "one sentence on what this setup is",
+              maxlength: 200, class: "field mt-2" %>
+      </label>
+
+      <label class="block">
+        <span class="label">details</span>
+        <%= form.text_area :details, rows: 8,
+              placeholder: "What is in it, why, what you would change. HTML and CSS allowed — no JavaScript.",
+              class: "field mt-2 leading-relaxed" %>
+        <span class="label mt-2 block text-zinc-600">
+          HTML and inline CSS, cleaned on render. Same allowlist as your page.
+        </span>
+      </label>
+    </div>
+
+    <h3 class="rule mt-10 max-w-3xl">
+      <span class="label">The facts</span>
+      <span class="label text-zinc-600">the six things people ask about a rice</span>
+    </h3>
+
+    <div class="mt-6 grid max-w-3xl gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <% Showcase::FACTS.each do |fact, label| %>
+        <label class="block">
+          <span class="label"><%= label %></span>
+          <%= form.text_field fact, maxlength: Showcase::MAX_LINE_LENGTH, class: "field mt-2" %>
+        </label>
+      <% end %>
+    </div>
+
+    <div class="mt-8 flex flex-wrap items-center gap-3">
+      <%= form.submit "Save showcase", class: "btn btn-primary" %>
+      <%= link_to "See it on your page", profile_path(current_user, anchor: "showcase"), class: "btn" %>
+    </div>
+  <% end %>
+</section>
