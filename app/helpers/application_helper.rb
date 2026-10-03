@@ -20,4 +20,19 @@ module ApplicationHelper
 
     tag.style(raw(css)) # rubocop:disable Rails/OutputSafety
   end
+
+  # A colour for a `style` attribute, or the fallback when the page has not said.
+  #
+  # The value comes from a page's own stylesheet, so it is passed through a strict
+  # shape check before it reaches the attribute — a CSS colour value is a short
+  # vocabulary, and anything outside it is not a colour.
+  def colour_style(colour, fallback:)
+    value = colour.to_s.match?(PageThumbnail::COLOUR) ? colour : fallback
+    "color: #{value}".html_safe
+  end
+
+  def background_style(colour)
+    value = colour.to_s.match?(PageThumbnail::COLOUR) ? colour : "transparent"
+    "background-color: #{value}".html_safe
+  end
 end
