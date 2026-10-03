@@ -3,9 +3,7 @@
   <head>
     <title><%= content_for(:title) || "RiceSpace" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="application-name" content="RiceSpace">
-    <meta name="mobile-web-app-capable" content="yes">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
@@ -21,9 +19,9 @@
 
   <script type="module">
     // The profile song. Autoplay, as the era's pages did it — but browsers refuse
-    // audible autoplay until the visitor has interacted with the page, so this
-    // starts the track on the first interaction and does nothing if the browser
-    // says no. There is never a prompt and never a second attempt per interaction.
+    // audible autoplay until the visitor has interacted with the page, so this starts
+    // the track on the first interaction and does nothing if the browser says no.
+    // There is never a prompt and never a second attempt per interaction.
     const song = document.querySelector("audio.song");
     if (song) {
       const start = () => {
@@ -38,49 +36,52 @@
   </script>
 
   <body class="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
-    <header id="site-header" class="border-b border-zinc-800 bg-zinc-900/60">
-      <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
-        <%= link_to root_path, class: "flex items-baseline gap-2" do %>
-          <span class="text-lg font-bold tracking-tight text-fuchsia-400">RiceSpace</span>
-          <span class="hidden text-xs text-zinc-500 sm:inline">your page, your markup</span>
+    <%# The site's chrome: one hairline, a wordmark, and uppercase labels for
+        destinations. No logo, no icons, no shadow — the loudest thing on any page here
+        is supposed to be somebody's desktop, so the chrome stays quiet. %>
+    <header id="site-header" class="border-b border-zinc-800">
+      <div class="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-4">
+        <%= link_to root_path, class: "flex items-baseline gap-3" do %>
+          <span class="text-sm font-semibold uppercase tracking-[0.2em] text-zinc-100">RiceSpace</span>
+          <span class="label hidden sm:inline">pages you build</span>
         <% end %>
 
-        <nav class="flex items-center gap-3 text-sm">
-          <%= link_to "Pages", root_path, class: "text-zinc-400 hover:text-zinc-100" %>
-          <%= link_to "Layouts", layouts_path, class: "text-zinc-400 hover:text-zinc-100" %>
-          <%= link_to "Agents", agents_path, class: "text-zinc-400 hover:text-zinc-100" %>
+        <nav class="flex items-center gap-5">
+          <%= link_to "Showcase", root_path, class: "label hover:text-zinc-200" %>
+          <%= link_to "Layouts", layouts_path, class: "label hover:text-zinc-200" %>
+          <%= link_to "Agents", agents_path, class: "label hover:text-zinc-200" %>
           <% if signed_in? %>
-            <%= link_to "Studio", studio_path, class: "text-zinc-400 hover:text-zinc-100" %>
-            <%= link_to "Your page", profile_path(current_user), class: "text-zinc-400 hover:text-zinc-100" %>
-            <%= button_to "Sign out", session_path, method: :delete,
-                  class: "rounded border border-zinc-700 px-2 py-1 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100" %>
+            <%= link_to "Studio", studio_path, class: "label hover:text-zinc-200" %>
+            <%= link_to "Your page", profile_path(current_user), class: "label hover:text-zinc-200" %>
+            <%= button_to "Sign out", session_path, method: :delete, class: "label hover:text-zinc-200" %>
           <% else %>
-            <%= link_to "Sign in", new_session_path, class: "text-zinc-400 hover:text-zinc-100" %>
-            <%= link_to "Create a page", new_registration_path,
-                  class: "rounded bg-fuchsia-500 px-3 py-1 font-medium text-zinc-950 hover:bg-fuchsia-400" %>
+            <%= link_to "Sign in", new_session_path, class: "label hover:text-zinc-200" %>
+            <%= link_to "Create a page", new_registration_path, class: "btn btn-primary" %>
           <% end %>
         </nav>
       </div>
     </header>
 
     <% if flash.any? %>
-      <div class="mx-auto max-w-5xl space-y-2 px-4 pt-4">
+      <div class="mx-auto max-w-6xl space-y-px px-6 pt-4">
         <% flash.each do |kind, message| %>
           <% next if message.blank? %>
-          <p class="rounded border px-3 py-2 text-sm <%= kind.to_s == "alert" ? "border-red-800 bg-red-950/60 text-red-200" : "border-emerald-800 bg-emerald-950/60 text-emerald-200" %>">
+          <p class="border px-3 py-2 text-sm <%= kind.to_s == "alert" ? "border-red-900 bg-red-950 text-red-200" : "border-emerald-900 bg-emerald-950 text-emerald-200" %>">
             <%= message %>
           </p>
         <% end %>
       </div>
     <% end %>
 
-    <main class="mx-auto max-w-5xl px-4 py-8">
+    <main class="mx-auto max-w-6xl px-6 py-10">
       <%= yield %>
     </main>
 
-    <footer class="mx-auto max-w-5xl px-4 pb-10 pt-4 text-xs text-zinc-600">
-      Profile markup is written by its owner and sanitized on render.
-      <%= link_to "Read the agent contract", agents_path, class: "underline hover:text-zinc-400" %>.
+    <footer class="mt-16 border-t border-zinc-800">
+      <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-6">
+        <p class="label">Markup by its owner, cleaned on render</p>
+        <%= link_to "Read the agent contract", agents_path, class: "label hover:text-zinc-200" %>
+      </div>
     </footer>
   </body>
 </html>

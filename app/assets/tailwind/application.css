@@ -1,12 +1,191 @@
 @import "tailwindcss";
 
-/* The site chrome is Tailwind. A profile's own page is not: it is author markup
-   behind a real stylesheet, so it needs a starting point of its own or a stripped
-   <h1> and a <marquee> would both come out as browser defaults. Keep this small,
-   and keep it *before* the author's sheet in the cascade — a profile's own rules
-   are supposed to be able to override every line of it, including hiding the site
-   chrome, if that is the page its author wants. */
+/* RiceSpace's own design language.
+   ─────────────────────────────────────────────────────────────────────────────
+   Three rules, and everything below is one of them.
+
+   1. SHARP. No rounded corners anywhere, on anything, ever. The one thing this site
+      is not is a rounded box with a shadow in the middle of a grey page — a page
+      here is a page, and the site's own chrome is a ruled instrument around it.
+
+   2. THE LABEL IS THE DESIGN. Small, uppercase, letterspaced monospace labels over
+      values is the whole visual vocabulary: it is how the site says what a thing is
+      without a card, a badge, an icon or an illustration. It is also the honest shape
+      for this site, whose content is facts.
+
+   3. THE RICE LEADS. The showcase is the page's main event, so the chrome stays
+      monochrome and quiet and every colour on a page belongs to somebody's desktop.
+
+   The author's stylesheet is written after all of this, so a profile can override
+   every line of it — see PageCss. */
+
 @layer base {
+  /* Sharp, and the same sharpness everywhere: one border colour and one hairline,
+     rather than a set of cards that each invent their own edge. */
+  *,
+  ::before,
+  ::after {
+    border-radius: 0;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  /* One mono for everything that is a label, a fact, a value or code. */
+  code, pre, kbd, samp, .label, .fact-value, .rice-meta {
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, monospace;
+  }
+
+  /* Focus is visible and square: a 2px outline, offset, in the accent. */
+  :focus-visible {
+    outline: 2px solid var(--color-amber-400);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--color-amber-400);
+    color: var(--color-zinc-950);
+  }
+}
+
+@layer components {
+  /* THE LABEL. The site's one idea, in one rule: small, uppercase, wide-tracked,
+     monospace. Sits over every value it names. */
+  .label {
+    font-size: 0.6875rem;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    font-weight: 500;
+    color: var(--color-zinc-500);
+  }
+
+  /* A section divider that carries its label on the line, so the line is the
+     heading's baseline rather than decoration. */
+  .rule {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-top: 1px solid var(--color-zinc-800);
+    padding-top: 0.625rem;
+  }
+
+  /* A fact: label over value. The unit the showcase description is built from. */
+  .fact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    border-left: 1px solid var(--color-zinc-800);
+    padding-left: 0.75rem;
+    min-width: 0;
+  }
+
+  .fact-value {
+    font-size: 0.8125rem;
+    color: var(--color-zinc-200);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* The showcase: the main event. It gets the one loud treatment on the site — a hard
+     offset frame, like a print on a desk — and nothing else does. */
+  .rice-frame {
+    border: 1px solid var(--color-zinc-700);
+    box-shadow: 8px 8px 0 0 var(--color-zinc-900), 8px 8px 0 1px var(--color-zinc-800);
+    background: var(--color-zinc-950);
+  }
+
+  /* The mark on the main event. */
+  .rice-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.6875rem;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    font-weight: 600;
+    background: var(--color-amber-400);
+    color: var(--color-zinc-950);
+    padding: 0.375rem 0.625rem;
+  }
+
+  /* A flat, square control: outline, uppercase label, no transition theatre. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid var(--color-zinc-700);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-zinc-200);
+    background: transparent;
+  }
+  .btn:hover {
+    border-color: var(--color-zinc-400);
+    color: white;
+  }
+
+  .btn-primary {
+    background: var(--color-amber-400);
+    border-color: var(--color-amber-400);
+    color: var(--color-zinc-950);
+  }
+  .btn-primary:hover {
+    background: var(--color-amber-300);
+    border-color: var(--color-amber-300);
+    color: var(--color-zinc-950);
+  }
+
+  /* Inputs: ruled, monospace, square. A value is a fact, so it is set in the fact
+     face. */
+  .field {
+    width: 100%;
+    border: 1px solid var(--color-zinc-700);
+    background: var(--color-zinc-950);
+    padding: 0.5rem 0.625rem;
+    font-family: ui-monospace, "SF Mono", "JetBrains Mono", monospace;
+    font-size: 0.8125rem;
+    color: var(--color-zinc-100);
+  }
+  .field::placeholder {
+    color: var(--color-zinc-600);
+  }
+  .field:focus {
+    border-color: var(--color-amber-400);
+    outline: none;
+  }
+
+  /* The site's own surface for a grouped block: a hairline, not a card. */
+  .panel {
+    border: 1px solid var(--color-zinc-800);
+    background: var(--color-zinc-900);
+  }
+
+  /* A page in the directory: its colours are the page's, its frame is ours. */
+  .page-card {
+    border: 1px solid var(--color-zinc-800);
+    background: var(--color-zinc-950);
+  }
+  .page-card:hover {
+    border-color: var(--color-zinc-700);
+  }
+}
+
+@layer base {
+  /* A profile's own page. The author's rules come after the site's, so all of this is
+     a starting point they can override — including hiding the site's chrome. Keep it
+     small and structural: enough that a stripped <h1> and a <marquee> are not
+     indistinguishable, and no more, because the author styles the page. */
   .profile-page {
     line-height: 1.6;
     word-break: break-word;
