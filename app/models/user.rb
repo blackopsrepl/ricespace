@@ -14,7 +14,14 @@ class User < ApplicationRecord
   RESERVED_USERNAMES = %w[
     admin api assets about account auth help home legal login logout me new
     profiles root settings sign-in sign-out sign-up static studio support up
+    ron
   ].freeze
+
+  # The site's own account. The era's sites opened with their founder already on
+  # your friends list; here that account is Ron, and every new page starts with
+  # him on it. His name is one of the reserved ones — being the site's own
+  # account is what exempts him from the rule that reserves it.
+  RON = "ron"
 
   # Long enough that a profile page is not the softest target in the account.
   MINIMUM_PASSWORD_LENGTH = 12
@@ -60,8 +67,10 @@ class User < ApplicationRecord
     uniqueness: { case_sensitive: false }
   validates :username, presence: true,
     format: { with: USERNAME_FORMAT, message: "may only contain lowercase letters, digits and hyphens" },
-    uniqueness: true,
-    exclusion: { in: RESERVED_USERNAMES, message: "is reserved" }
+    uniqueness: true
+  # The names the site itself needs are refused to everybody except the site's
+  # own account, whose name is one of them.
+  validates :username, exclusion: { in: RESERVED_USERNAMES, message: "is reserved" }, unless: :admin?
   validates :name, length: { maximum: 60 }, allow_blank: true
   validates :headline, length: { maximum: 140 }, allow_blank: true
   # The greeting is the line across the top of the page, so it is one line.
@@ -71,6 +80,13 @@ class User < ApplicationRecord
 
   after_create { build_profile.save! unless profile }
 
+  # A new page opens with the site's own account already on its list, first.
+  after_create :be_friends_with_ron
+
+  def self.ron
+    find_by(username: RON)
+  end
+
   def to_param
     username
   end
@@ -79,4 +95,14 @@ class User < ApplicationRecord
   def display_name
     name.presence || username
   end
+
+  private
+    def be_friends_with_ron
+      return if username == RON
+
+      host = self.class.ron
+      return if host.nil?
+
+      friendships.create!(friend: host)
+    end
 end

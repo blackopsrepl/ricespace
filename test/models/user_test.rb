@@ -43,6 +43,33 @@ class UserTest < ActiveSupport::TestCase
   test "names the site might need are reserved" do
     assert_not User.new(email_address: "a@example.com", username: "admin", password: "correct horse battery").valid?
     assert_not User.new(email_address: "a@example.com", username: "profiles", password: "correct horse battery").valid?
+    assert_not User.new(email_address: "a@example.com", username: "ron", password: "correct horse battery").valid?
+  end
+
+  test "the site's own account may hold a reserved name" do
+    ron = User.new(email_address: "ron@ricespace.example", username: "ron",
+      password: "correct horse battery", admin: true)
+
+    assert_predicate ron, :valid?
+  end
+
+  test "a new page opens with ron already on its friends list, first" do
+    ron = User.create!(username: "ron", email_address: "ron@ricespace.example",
+      password: "correct horse battery", admin: true)
+    newcomer = create_user(username: "cordelia", email_address: "cordelia@example.com")
+
+    assert_equal [ ron ], newcomer.friendships.in_order.map(&:friend)
+  end
+
+  test "ron does not add himself to his own list" do
+    ron = User.create!(username: "ron", email_address: "ron@ricespace.example",
+      password: "correct horse battery", admin: true)
+
+    assert_empty ron.friendships
+  end
+
+  test "with no ron yet, a new page still saves" do
+    assert_nothing_raised { create_user(username: "cordelia", email_address: "cordelia@example.com") }
   end
 
   test "an account needs a password long enough to be worth typing" do

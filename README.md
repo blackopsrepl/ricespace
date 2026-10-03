@@ -77,6 +77,21 @@ survives, including the deliberate boundary: JavaScript. A RiceSpace page cannot
 contain it — not in the markup, not as a `javascript:` URL, not through a CSS
 fetch. Everything else about the layout is the author's.
 
+## Who runs the place
+
+<img src="docs/assets/ron.png" alt="Ron — the friendly default first friend, with laser eyes" width="200">
+
+**Ron** is the site's own account and its admin (`db/seeds.rb`), and he is
+everybody's first friend: creating a page adds him to that account's friends list
+before the owner has done anything, because that is how the era's sites opened.
+His name is on the reserved list — being the site's own account is what exempts
+him from it (`User#admin?`), and he is the only account that can hold a reserved
+name.
+
+That is the whole of the founder figure: one seeded account, a first-friend
+relationship on sign-up, and the flag that lets the name exist. Nothing else in
+the product is privileged, and no screen changes because a user is an admin.
+
 ## Two writers, one page
 
 The owner has the page open in the studio while their agent writes it over the
