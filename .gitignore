@@ -33,6 +33,9 @@
 # Ignore key files for decrypting credentials and more.
 /config/*.key
 
+# The founder account's password, kept out of the repository on purpose.
+/.ron-password
+
 
 /app/assets/builds/*
 !/app/assets/builds/.keep

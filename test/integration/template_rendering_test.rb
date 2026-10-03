@@ -56,7 +56,7 @@ class TemplateRenderingTest < ActionDispatch::IntegrationTest
   test "the page carries the hook names a pasted layout targets" do
     friend = User.create!(username: "cordelia", email_address: "c@example.com", password: "correct horse battery")
     @user.friendships.create!(friend: friend)
-    @user.comments.create!(body: "hi", author_name: "a visitor")
+    @user.comments.create!(author: friend, body: "hi")
 
     get profile_path(@user)
 

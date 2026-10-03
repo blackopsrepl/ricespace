@@ -443,15 +443,17 @@
     <span class="label commentCount text-zinc-400"><%= @user.comments.count %></span>
   </h2>
 
-  <%= form_with model: @comment, url: profile_comments_path(@user.username), id: "comment-form", class: "mt-5 max-w-2xl" do |form| %>
-    <% unless signed_in? %>
-      <%= form.text_field :author_name, placeholder: "your name", maxlength: Comment::MAX_AUTHOR_NAME_LENGTH,
-            class: "field mb-2 w-56" %>
+  <% if signed_in? %>
+    <%= form_with model: @comment, url: profile_comments_path(@user.username), id: "comment-form", class: "mt-5 max-w-2xl" do |form| %>
+      <div class="flex flex-wrap items-start gap-2">
+        <%= form.text_area :body, rows: 3, required: true, placeholder: "leave a comment as @#{current_user.username}", class: "field" %>
+        <%= form.submit "Comment", class: "btn" %>
+      </div>
     <% end %>
-    <div class="flex flex-wrap items-start gap-2">
-      <%= form.text_area :body, rows: 3, required: true, placeholder: "leave a comment", class: "field" %>
-      <%= form.submit "Comment", class: "btn" %>
-    </div>
+  <% else %>
+    <p class="mt-5 text-sm text-zinc-500">
+      <%= link_to "Sign in", new_session_path, class: "underline hover:text-zinc-200" %> to leave a comment.
+    </p>
   <% end %>
 
   <% if @comments.any? %>

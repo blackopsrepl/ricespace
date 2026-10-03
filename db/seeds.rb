@@ -8,13 +8,23 @@
 # Ron is the site's own account: its founder, its admin, and everybody's first
 # friend. Being the site's own account is what lets him hold a reserved username,
 # so the row is created as an admin.
+#
+# His password is NOT in this file. The repository is public, so a seeded password
+# here would be a published credential for the live admin account. It is read from a
+# file outside the app instead — `/etc/ricespace/ron-password` on the server, a local
+# `.ron-password` in development — and when that file is absent the account gets a
+# random password that is never shown, so nothing is guessable by default.
 ron = User.find_or_initialize_by(username: User::RON)
 if ron.new_record?
+  password_file = ENV["RICESPACE_RON_PASSWORD_FILE"] ||
+    (Rails.env.production? ? "/etc/ricespace/ron-password" : Rails.root.join(".ron-password").to_s)
+  password = File.exist?(password_file) ? File.read(password_file).strip : SecureRandom.base58(24)
+
   ron.assign_attributes(
     admin: true,
     name: "Ron",
     email_address: "ron@ricespace.example",
-    password: "correct horse battery staple",
+    password: password,
     greeting: "hey, thanks for adding me — i'm ron, i run the place",
     mood: "based",
     headline: "founder, and your first friend"

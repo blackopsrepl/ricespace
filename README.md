@@ -126,6 +126,14 @@ Application state lives in the app's `storage/` directory on the host, so it
 survives a restart of either unit. `config/database.yml` puts the production
 database there.
 
+## Who can do what
+
+Reading is open; writing is an account. A page, a comment, a friends list entry, a
+layout applied — each belongs to somebody. In particular **comments are signed in
+only**: an anonymous box on a page is a spam target with no accountable author, so a
+signed-out visitor is offered a sign-in link instead, and an anonymous name sent by
+hand is ignored. Every comment has an account behind it.
+
 ## Two writers, one page
 
 The owner has the page open in the studio while their agent writes it over the
