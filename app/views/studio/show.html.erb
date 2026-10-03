@@ -1,278 +1,295 @@
 <% content_for :title, "Studio — RiceSpace" %>
 
-<h1 class="text-2xl font-bold tracking-tight">Studio</h1>
-<p class="mt-1 text-sm text-zinc-500">
-  You are signed in as <strong class="text-zinc-300">@<%= current_user.username %></strong>.
-  <%= link_to "See your page", profile_path(current_user), class: "text-fuchsia-400 hover:text-fuchsia-300" %>
-</p>
+<header class="mb-10 flex flex-wrap items-end justify-between gap-6">
+  <div>
+    <h1 class="text-3xl font-semibold tracking-tight">Studio</h1>
+    <p class="mt-3 max-w-2xl text-zinc-400">
+      Signed in as <span class="text-zinc-200">@<%= current_user.username %></span>. Three
+      things live here: the markup of your page, the facts around it, and the showcase
+      that sits above it.
+    </p>
+  </div>
+  <p class="flex flex-wrap gap-2">
+    <%= link_to "Your page", profile_path(current_user), class: "btn" %>
+    <%= link_to "Your showcase", edit_showcase_path, class: "btn btn-primary" %>
+  </p>
+</header>
 
-<section class="mt-8">
-  <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-500">Your page</h2>
-  <p class="mt-2 max-w-2xl text-sm text-zinc-400">
-    HTML and CSS. Use the tags of the era — <code class="text-zinc-300">&lt;marquee&gt;</code>,
+<%# The showcase first, and out of order: it is the main event on the page, so the way to
+    edit it is the first thing the studio offers rather than a section at the bottom. %>
+<section class="mb-14 border border-amber-400/40 p-5">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <span class="rice-label">the rice</span>
+      <p class="mt-4 max-w-2xl text-zinc-400">
+        <% if current_user.showcase&.filled? %>
+          Your showcase is on your page. Change the shot, the facts or the words.
+        <% else %>
+          Empty — and it is the main event on your page. A screenshot of your setup,
+          what is in it, and what you run.
+        <% end %>
+      </p>
+    </div>
+    <%= link_to current_user.showcase&.filled? ? "Edit your showcase" : "Build your showcase",
+          edit_showcase_path, class: "btn btn-primary" %>
+  </div>
+</section>
+
+<section class="mb-14">
+  <h2 class="rule">
+    <span class="label">Your page</span>
+    <span class="label text-zinc-600">markup, cleaned when it is shown</span>
+  </h2>
+  <p class="mt-5 max-w-2xl text-zinc-400">
+    HTML and CSS. The tags of the era are here — <code class="text-zinc-300">&lt;marquee&gt;</code>,
     <code class="text-zinc-300">&lt;font&gt;</code>, <code class="text-zinc-300">&lt;center&gt;</code>,
-    tables — and a <code class="text-zinc-300">&lt;style&gt;</code> block to lay the whole page out.
+    tables — and a <code class="text-zinc-300">&lt;style&gt;</code> block lays out the whole page.
     Nothing here is a template: what you write is the page.
   </p>
 
   <% if @conflicted %>
-    <p class="mt-3 rounded border border-amber-700 bg-amber-950/50 p-3 text-sm text-amber-200">
-      Somebody — most likely your own agent — wrote this page while you were editing it, so your save
-      was refused. What you typed is still in the editor below; saving again replaces their version
-      with yours.
+    <p class="mt-5 border border-amber-700 bg-amber-950 p-3 text-sm text-amber-200">
+      Somebody — most likely your own agent — wrote this page while you were editing it, so
+      your save was refused. What you typed is still in the editor below; saving again
+      replaces their version with yours.
     </p>
   <% end %>
 
   <% if @profile.errors.any? %>
-    <ul class="mt-3 space-y-1 rounded border border-red-800 bg-red-950/60 p-3 text-sm text-red-200">
+    <ul class="mt-5 space-y-px border border-red-900 bg-red-950 p-3 text-sm text-red-200">
       <% @profile.errors.full_messages.each do |message| %>
         <li><%= message %></li>
       <% end %>
     </ul>
   <% end %>
 
-  <%= form_with model: @profile, url: studio_path, method: :patch, class: "mt-3" do |form| %>
-    <%# The revision this editor was showing. It is how a save can tell that the
-        page moved underneath it. %>
+  <%= form_with model: @profile, url: studio_path, method: :patch, class: "mt-5" do |form| %>
+    <%# The revision this editor was showing. It is how a save can tell that the page
+        moved underneath it. %>
     <%= form.hidden_field :version, value: @profile.version %>
     <%= form.text_area :document, rows: 24, spellcheck: false,
-          class: "w-full rounded-lg border border-zinc-700 bg-zinc-950 p-4 font-mono text-xs leading-relaxed text-zinc-200 focus:border-fuchsia-500 focus:outline-none",
+          class: "field leading-relaxed",
           placeholder: "<style>\n  body { background: #111; color: #0ff }\n</style>\n<marquee>welcome to my page</marquee>" %>
-    <div class="mt-3 flex flex-wrap items-center gap-3">
-      <%= form.submit "Save page",
-            class: "rounded bg-fuchsia-500 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-fuchsia-400" %>
-      <span class="text-xs text-zinc-500">
-        Your page is saved as you write it and cleaned when it is shown, so a tightened rule applies to
-        every page at once.
-      </span>
+    <div class="mt-4 flex flex-wrap items-center gap-4">
+      <%= form.submit "Save page", class: "btn btn-primary" %>
+      <span class="label">saved as you write it, cleaned when it is shown</span>
     </div>
   <% end %>
 </section>
 
-<section class="mt-10 border-t border-zinc-800 pt-6">
-  <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-500">Your page's bits</h2>
-  <p class="mt-2 max-w-2xl text-sm text-zinc-400">
-    These are the sections a layout can target: a picture, a greeting, a mood, blocks of text, and your
-    friends list. A stylesheet pasted from 2006 lands on them by name — the friends list is
-    <code class="text-zinc-300">.friendSpace</code>, the picture is
+<section class="mb-14">
+  <h2 class="rule">
+    <span class="label">The page's bits</span>
+    <span class="label text-zinc-600">what a pasted layout can reach</span>
+  </h2>
+  <p class="mt-5 max-w-2xl text-zinc-400">
+    These are the sections a layout targets by name: a picture, a greeting, a mood, blocks
+    of text, a song, and your friends list. A stylesheet pasted from 2006 lands on them —
+    the friends list is <code class="text-zinc-300">.friendSpace</code>, the picture is
     <code class="text-zinc-300">.profile-pic</code>, a blurb is <code class="text-zinc-300">.blurb</code>.
   </p>
 
-  <div class="mt-6 grid gap-8 lg:grid-cols-2">
+  <div class="mt-8 grid gap-10 lg:grid-cols-2">
     <div>
-      <h3 class="text-sm font-semibold text-zinc-300">Picture, greeting, mood</h3>
+      <h3 class="label">Picture, name, greeting</h3>
 
-      <%= form_with url: profile_picture_path, method: :patch, multipart: true, class: "mt-3 space-y-3" do |form| %>
-        <div class="flex items-center gap-3">
+      <%= form_with url: profile_picture_path, method: :patch, multipart: true, class: "mt-5" do |form| %>
+        <div class="flex items-center gap-4">
           <% if @picture&.image&.attached? %>
             <%= image_tag @picture.image.variant(:display), alt: "your picture",
-                  class: "h-20 w-20 rounded border border-zinc-700 object-cover" %>
+                  class: "h-24 w-24 border border-zinc-700 object-cover" %>
           <% else %>
-            <span class="flex h-20 w-20 items-center justify-center rounded border border-dashed border-zinc-700 text-xs text-zinc-600">
-              no pic
+            <span class="flex h-24 w-24 items-center justify-center border border-dashed border-zinc-800">
+              <span class="label">no pic</span>
             </span>
           <% end %>
-          <div>
+          <div class="min-w-0">
             <%= form.file_field :image, accept: "image/*",
-                  class: "text-xs text-zinc-400 file:mr-2 file:rounded file:border file:border-zinc-700 file:bg-zinc-900 file:px-2 file:py-1 file:text-zinc-200" %>
-            <p class="mt-1 text-xs text-zinc-600">An image, up to <%= ProfilePicture::MAX_BYTES / 1.megabyte %> MB.</p>
+                  class: "text-xs text-zinc-400 file:mr-3 file:border file:border-zinc-700 file:bg-zinc-900 file:px-2 file:py-1 file:text-zinc-200" %>
+            <p class="label mt-2">an image, up to <%= ProfilePicture::MAX_BYTES / 1.megabyte %> MB</p>
           </div>
         </div>
-        <%= form.submit "Upload picture",
-              class: "rounded border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:border-zinc-500" %>
+        <%= form.submit "Upload picture", class: "btn mt-4" %>
       <% end %>
 
       <% if @picture&.image&.attached? %>
-        <%= button_to "Remove picture", profile_picture_path, method: :delete,
-              class: "mt-2 text-xs text-red-400 hover:text-red-300" %>
+        <%= button_to "Remove picture", profile_picture_path, method: :delete, class: "label mt-3 hover:text-red-300" %>
       <% end %>
 
-      <%= form_with model: current_user, url: account_path, method: :patch, class: "mt-5 space-y-3" do |form| %>
-        <div>
-          <%= form.label :name, "Display name", class: "block text-xs text-zinc-500" %>
-          <%= form.text_field :name, maxlength: 60,
-                class: "mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 focus:border-fuchsia-500 focus:outline-none" %>
-        </div>
-        <div>
-          <%= form.label :greeting, "Greeting", class: "block text-xs text-zinc-500" %>
-          <%= form.text_field :greeting, maxlength: 140, placeholder: "welcome to my page",
-                class: "mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-fuchsia-500 focus:outline-none" %>
-        </div>
-        <div>
-          <%= form.label :mood, "Mood", class: "block text-xs text-zinc-500" %>
-          <%= form.text_field :mood, maxlength: 40, placeholder: "listening to the modem handshake",
-                class: "mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-fuchsia-500 focus:outline-none" %>
-        </div>
-        <div>
-          <%= form.label :headline, "Headline", class: "block text-xs text-zinc-500" %>
-          <%= form.text_field :headline, maxlength: 140,
-                class: "mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 focus:border-fuchsia-500 focus:outline-none" %>
-        </div>
-        <%= form.submit "Save details",
-              class: "rounded border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:border-zinc-500" %>
+      <%= form_with model: current_user, url: account_path, method: :patch, class: "mt-8 grid gap-4" do |form| %>
+        <label class="block">
+          <span class="label">display name</span>
+          <%= form.text_field :name, maxlength: 60, class: "field mt-2" %>
+        </label>
+        <label class="block">
+          <span class="label">greeting</span>
+          <%= form.text_field :greeting, maxlength: 140, placeholder: "welcome to my page", class: "field mt-2" %>
+        </label>
+        <label class="block">
+          <span class="label">mood</span>
+          <%= form.text_field :mood, maxlength: 40, placeholder: "listening to the modem handshake", class: "field mt-2" %>
+        </label>
+        <label class="block">
+          <span class="label">headline</span>
+          <%= form.text_field :headline, maxlength: 140, class: "field mt-2" %>
+        </label>
+        <div><%= form.submit "Save details", class: "btn" %></div>
       <% end %>
 
-      <h3 class="mt-6 text-sm font-semibold text-zinc-300">Profile song</h3>
-      <p class="mt-1 text-xs text-zinc-600">
-        One track, played on your page as <code class="text-zinc-300">.audio.player</code>. It is not
-        downloaded until a visitor presses play.
+      <h3 class="label mt-10">Profile song</h3>
+      <p class="mt-4 max-w-lg text-sm text-zinc-500">
+        One track, played on your page as <code class="text-zinc-300">.audio.player</code>. It is
+        not downloaded until a visitor presses play.
       </p>
 
-      <%= form_with model: current_user.profile, url: update_song_studio_path, method: :patch, class: "mt-3 space-y-3" do |form| %>
+      <%= form_with model: current_user.profile, url: update_song_studio_path, method: :patch, class: "mt-5 grid gap-4" do |form| %>
         <%= form.hidden_field :version, value: current_user.profile.version %>
         <%# The song is saved through the page it belongs to, so it takes the same
             revision check as the markup. %>
-        <%= form.text_field :song_title, maxlength: 120, placeholder: "song title",
-              class: "w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-fuchsia-500 focus:outline-none" %>
-        <%= form.url_field :song_url, placeholder: "https://example.com/song.mp3",
-              class: "w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-fuchsia-500 focus:outline-none" %>
-        <%= form.submit "Save song",
-              class: "rounded border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:border-zinc-500" %>
+        <label class="block">
+          <span class="label">title</span>
+          <%= form.text_field :song_title, maxlength: 120, placeholder: "song title", class: "field mt-2" %>
+        </label>
+        <label class="block">
+          <span class="label">url</span>
+          <%= form.url_field :song_url, placeholder: "https://example.com/song.mp3", class: "field mt-2" %>
+        </label>
+        <div><%= form.submit "Save song", class: "btn" %></div>
       <% end %>
     </div>
 
     <div>
-      <h3 class="text-sm font-semibold text-zinc-300">Blurbs</h3>
-      <p class="mt-1 text-xs text-zinc-600">
-        A titled block: Interests, Music, Heroes, whatever you want. The body takes the same HTML as
-        your page.
+      <h3 class="label">Blurbs</h3>
+      <p class="mt-4 max-w-lg text-sm text-zinc-500">
+        A titled block: Interests, Music, Heroes, whatever you want. The body takes the same
+        markup as your page.
       </p>
 
       <% if @blurbs.any? %>
-        <ul class="mt-3 space-y-3">
+        <ol class="mt-5 space-y-px border border-zinc-800">
           <% @blurbs.each do |blurb| %>
-            <li class="rounded border border-zinc-800 bg-zinc-900/40 p-3">
-              <%= form_with model: blurb, class: "space-y-2" do |form| %>
+            <li class="bg-zinc-950 p-3">
+              <%= form_with model: blurb, class: "grid gap-3" do |form| %>
                 <div class="flex items-center gap-2">
-                  <%= form.text_field :title, maxlength: Blurb::MAX_TITLE_LENGTH,
-                        class: "w-40 rounded border border-zinc-700 bg-zinc-950 px-2 py-1 text-sm text-zinc-200 focus:border-fuchsia-500 focus:outline-none" %>
-                  <span class="flex gap-1 text-xs">
+                  <%= form.text_field :title, maxlength: Blurb::MAX_TITLE_LENGTH, class: "field w-48" %>
+                  <span class="flex items-center gap-1">
                     <%= button_tag "↑", name: "direction", value: "up", formaction: move_blurb_path(blurb),
-                          formmethod: :patch, class: "rounded border border-zinc-700 px-2 py-1 text-zinc-300 hover:border-zinc-500" %>
+                          formmethod: :patch, class: "btn px-2 py-1" %>
                     <%= button_tag "↓", name: "direction", value: "down", formaction: move_blurb_path(blurb),
-                          formmethod: :patch, class: "rounded border border-zinc-700 px-2 py-1 text-zinc-300 hover:border-zinc-500" %>
+                          formmethod: :patch, class: "btn px-2 py-1" %>
                   </span>
                 </div>
-                <%= form.text_area :body, rows: 3,
-                      class: "w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1 font-mono text-xs text-zinc-200 focus:border-fuchsia-500 focus:outline-none" %>
-                <%= form.submit "Save",
-                      class: "rounded border border-zinc-700 px-2 py-1 text-xs text-zinc-200 hover:border-zinc-500" %>
+                <%= form.text_area :body, rows: 3, class: "field" %>
+                <div><%= form.submit "Save", class: "btn" %></div>
               <% end %>
-              <%= button_to "Remove", blurb_path(blurb), method: :delete,
-                    class: "mt-2 text-xs text-red-400 hover:text-red-300" %>
+              <%= button_to "Remove", blurb_path(blurb), method: :delete, class: "label mt-3 hover:text-red-300" %>
             </li>
           <% end %>
-        </ul>
+        </ol>
       <% else %>
-        <p class="mt-3 text-sm text-zinc-500">No blurbs yet.</p>
+        <p class="mt-5 text-sm text-zinc-500">No blurbs yet.</p>
       <% end %>
 
-      <%= form_with scope: :blurb, url: blurbs_path, class: "mt-4 space-y-2" do |form| %>
-        <%= form.text_field :title, placeholder: "Interests", required: true, maxlength: Blurb::MAX_TITLE_LENGTH,
-              class: "w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-fuchsia-500 focus:outline-none" %>
-        <%= form.text_area :body, rows: 3, placeholder: "what you are into",
-              class: "w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 font-mono text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-fuchsia-500 focus:outline-none" %>
-        <%= form.submit "Add blurb",
-              class: "rounded border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:border-zinc-500" %>
+      <%= form_with scope: :blurb, url: blurbs_path, class: "mt-5 grid gap-3" do |form| %>
+        <%= form.text_field :title, placeholder: "Interests", required: true,
+              maxlength: Blurb::MAX_TITLE_LENGTH, class: "field" %>
+        <%= form.text_area :body, rows: 3, placeholder: "what you are into", class: "field" %>
+        <div><%= form.submit "Add blurb", class: "btn" %></div>
       <% end %>
     </div>
   </div>
 
-  <div class="mt-8">
-    <h3 class="text-sm font-semibold text-zinc-300">Friends</h3>
-    <p class="mt-1 text-xs text-zinc-600">
-      Your list appears on your page as <code class="text-zinc-300">.friendSpace</code>. You can also
-      add somebody from your own page.
+  <div class="mt-12">
+    <h3 class="label">Friends</h3>
+    <p class="mt-4 max-w-2xl text-sm text-zinc-500">
+      Your list appears on your page as <code class="text-zinc-300">.friendSpace</code>. You can
+      also add somebody from your own page.
     </p>
 
     <% if @friendships.any? %>
-      <ul class="mt-3 flex flex-wrap gap-2">
+      <ul class="mt-5 grid gap-px border border-zinc-800 sm:grid-cols-2">
         <% @friendships.each_with_index do |friendship, index| %>
-          <li class="flex items-center gap-2 rounded border <%= index < ProfilesController::TOP_EIGHT ? "border-fuchsia-800" : "border-zinc-800" %> bg-zinc-900/40 px-3 py-1.5 text-sm">
-            <%= link_to friendship.friend.display_name, profile_path(friendship.friend), class: "text-zinc-200 hover:text-zinc-100" %>
-            <span class="flex gap-1 text-xs">
+          <li class="flex items-center gap-3 bg-zinc-950 px-3 py-2">
+            <span class="label w-6"><%= index < ProfilesController::TOP_EIGHT ? "★" : format("%02d", index + 1) %></span>
+            <%= link_to friendship.friend.display_name, profile_path(friendship.friend),
+                  class: "truncate text-sm text-zinc-200 hover:text-amber-300" %>
+            <span class="ml-auto flex items-center gap-1">
               <%= button_tag "↑", name: "direction", value: "up", formaction: move_friendship_path(friendship),
-                    formmethod: :patch, class: "rounded border border-zinc-700 px-1.5 text-zinc-300 hover:border-zinc-500" %>
+                    formmethod: :patch, class: "btn px-2 py-1" %>
               <%= button_tag "↓", name: "direction", value: "down", formaction: move_friendship_path(friendship),
-                    formmethod: :patch, class: "rounded border border-zinc-700 px-1.5 text-zinc-300 hover:border-zinc-500" %>
+                    formmethod: :patch, class: "btn px-2 py-1" %>
+              <%= button_to "×", friendship_path(friendship), method: :delete,
+                    class: "btn px-2 py-1 hover:text-red-300" %>
             </span>
-            <%= button_to "Remove", friendship_path(friendship), method: :delete,
-                  class: "text-xs text-red-400 hover:text-red-300" %>
           </li>
         <% end %>
       </ul>
-      <p class="mt-2 text-xs text-zinc-600">
-        The first <%= ProfilesController::TOP_EIGHT %> are the ones your page shows first, at the top of
-        the list. Drag the arrows to change which.
+      <p class="label mt-3">
+        the first <%= ProfilesController::TOP_EIGHT %> show first on your page — starred above
       </p>
     <% else %>
-      <p class="mt-3 text-sm text-zinc-500">No friends listed yet.</p>
+      <p class="mt-5 text-sm text-zinc-500">No friends listed yet.</p>
     <% end %>
 
-    <%= form_with url: friendships_path, class: "mt-3 flex flex-wrap items-center gap-2" do |form| %>
-      <%= form.text_field :username, placeholder: "their username", required: true,
-            class: "rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-fuchsia-500 focus:outline-none" %>
-      <%= form.submit "Add friend",
-            class: "rounded border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:border-zinc-500" %>
+    <%= form_with url: friendships_path, class: "mt-5 flex flex-wrap items-center gap-2" do |form| %>
+      <%= form.text_field :username, placeholder: "their username", required: true, class: "field w-48" %>
+      <%= form.submit "Add friend", class: "btn" %>
     <% end %>
   </div>
 </section>
 
-<section class="mt-10 border-t border-zinc-800 pt-6">
-  <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-500">Write it with an agent</h2>
-  <p class="mt-2 max-w-2xl text-sm text-zinc-400">
-    Optional: hand your coding agent a token and it can read and rewrite the same page over the HTTP
-    API — useful for a page you would rather generate than type. Revoke the token when it is done.
-    <%= link_to "What an agent can write", agents_path, class: "text-fuchsia-400 hover:text-fuchsia-300" %>.
+<section>
+  <h2 class="rule">
+    <span class="label">Write it with an agent</span>
+    <span class="label text-zinc-600">optional</span>
+  </h2>
+  <p class="mt-5 max-w-2xl text-zinc-400">
+    Hand your coding agent a token and it can read and rewrite the same page over the HTTP
+    API — useful for a page you would rather generate than type. Revoke the token when it is
+    done. <%= link_to "What an agent can write", agents_path, class: "underline hover:text-zinc-200" %>.
   </p>
 
   <% if @issued_token.present? %>
-    <section class="mt-4 rounded-lg border border-fuchsia-700 bg-fuchsia-950/40 p-5">
-      <h3 class="font-semibold text-fuchsia-200">Your new agent token</h3>
-      <p class="mt-1 text-sm text-fuchsia-200/80">
-        This is the only time it is shown. If you lose it, revoke it and issue another.
-      </p>
-      <pre class="mt-3 overflow-x-auto rounded border border-fuchsia-800 bg-zinc-950 p-3 font-mono text-xs text-fuchsia-100"><%= @issued_token %></pre>
-      <p class="mt-3 text-xs text-fuchsia-200/70">
-        Tell your agent to read <%= link_to agents_markdown_path, agents_markdown_path, class: "underline" %> first.
+    <section class="mt-6 border border-amber-400/40 p-5">
+      <span class="rice-label">shown once</span>
+      <pre class="mt-4 overflow-x-auto border border-zinc-800 bg-zinc-950 p-3 text-xs text-amber-100"><%= @issued_token %></pre>
+      <p class="label mt-3">
+        this is the only time it is shown — if you lose it, revoke it and issue another
       </p>
     </section>
   <% end %>
 
-  <%= form_with scope: :agent_token, url: agent_tokens_path, class: "mt-4 flex flex-wrap items-center gap-2" do |form| %>
-    <%= form.text_field :name, placeholder: "Claude Code", required: true,
-          class: "rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-fuchsia-500 focus:outline-none" %>
-    <%= form.submit "Issue token",
-          class: "rounded border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:border-zinc-500" %>
+  <%= form_with scope: :agent_token, url: agent_tokens_path, class: "mt-5 flex flex-wrap items-center gap-2" do |form| %>
+    <%= form.text_field :name, placeholder: "Claude Code", required: true, class: "field w-56" %>
+    <%= form.submit "Issue token", class: "btn" %>
   <% end %>
 
   <% if @tokens.any? %>
-    <table class="mt-5 w-full text-left text-sm">
-      <thead class="text-xs uppercase tracking-wider text-zinc-500">
+    <table class="mt-6 w-full border-collapse text-left text-sm">
+      <thead class="border-b border-zinc-800">
         <tr>
-          <th class="py-2 font-medium">Name</th>
-          <th class="py-2 font-medium">Issued</th>
-          <th class="py-2 font-medium">Last used</th>
+          <th class="label py-2 font-medium">Name</th>
+          <th class="label py-2 font-medium">Issued</th>
+          <th class="label py-2 font-medium">Last used</th>
           <th class="py-2"></th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-zinc-800">
+      <tbody>
         <% @tokens.each do |token| %>
-          <tr>
-            <td class="py-2 text-zinc-200"><%= token.name %></td>
-            <td class="py-2 text-zinc-500"><%= token.created_at.to_date.to_fs(:long) %></td>
-            <td class="py-2 text-zinc-500">
+          <tr class="border-b border-zinc-900">
+            <td class="py-3 text-zinc-200"><%= token.name %></td>
+            <td class="py-3 text-zinc-500"><%= token.created_at.to_date.to_fs(:long) %></td>
+            <td class="py-3 text-zinc-500">
               <%= token.last_used_at ? "#{time_ago_in_words(token.last_used_at)} ago" : "never" %>
             </td>
-            <td class="py-2 text-right">
-              <%= button_to "Revoke", agent_token_path(token), method: :delete,
-                    class: "text-xs text-red-400 hover:text-red-300" %>
+            <td class="py-3 text-right">
+              <%= button_to "Revoke", agent_token_path(token), method: :delete, class: "label hover:text-red-300" %>
             </td>
           </tr>
         <% end %>
       </tbody>
     </table>
   <% else %>
-    <p class="mt-4 text-sm text-zinc-500">No tokens yet.</p>
+    <p class="mt-5 text-sm text-zinc-500">No tokens yet.</p>
   <% end %>
 </section>

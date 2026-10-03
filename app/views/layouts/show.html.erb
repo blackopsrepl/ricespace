@@ -1,48 +1,45 @@
 <% content_for :title, "#{@layout.name} — RiceSpace" %>
 
-<div class="mb-6 flex flex-wrap items-baseline justify-between gap-3">
+<header class="mb-8 flex flex-wrap items-end justify-between gap-6">
   <div>
-    <h1 class="text-2xl font-bold tracking-tight"><%= @layout.name %></h1>
-    <p class="mt-1 text-xs text-zinc-500">by <%= @layout.author %> — <%= @layout.description %></p>
+    <h1 class="text-3xl font-semibold tracking-tight"><%= @layout.name %></h1>
+    <p class="label mt-3">by <%= @layout.author %> — <%= @layout.description %></p>
   </div>
-  <div class="flex items-center gap-3 text-sm">
-    <%= link_to "All layouts", layouts_path, class: "text-zinc-400 hover:text-zinc-100" %>
+  <p class="flex flex-wrap items-center gap-2">
+    <%= link_to "All layouts", layouts_path, class: "btn" %>
     <% if signed_in? %>
-      <%= button_to "Use this layout", apply_layout_path(@layout), method: :post,
-            class: "rounded bg-fuchsia-500 px-3 py-1.5 text-xs font-medium text-zinc-950 hover:bg-fuchsia-400" %>
+      <%= button_to "Wear this layout", apply_layout_path(@layout), method: :post, class: "btn btn-primary" %>
     <% end %>
-  </div>
-</div>
+  </p>
+</header>
 
-<p class="mb-4 text-sm text-zinc-500">
-  Previewing against
-  <% if @profile %>your page<% else %>an empty page<% end %> —
-  <%= link_to "sign in", new_session_path, class: "text-fuchsia-400 hover:text-fuchsia-300" %> to see it
-  against your own parts.
+<p class="label mb-6">
+  previewing against <%= @profile ? "your page" : "an empty page" %> —
+  <%= link_to "sign in", new_session_path, class: "hover:text-zinc-200" %> to see it against your own parts
 </p>
 
-<%# The layout rendered exactly as it renders on a page: written into the document
-    after everything the site loads, over the same anatomy. %>
+<%# The layout rendered exactly as it renders on a page: written into the document after
+    everything the site loads, over the same anatomy. %>
 <%= author_stylesheet(@layout.css) %>
 
-<article class="layout-preview rounded border border-zinc-800 bg-white p-6 text-zinc-900">
+<article class="layout-preview border border-zinc-800 bg-white p-6 text-zinc-900">
   <div class="contactTable flex items-start gap-4">
     <div class="profile-pic">
-      <div class="profile-pic-default flex h-24 w-24 items-center justify-center rounded border border-dashed border-zinc-400 text-xs text-zinc-500">
-        pic
+      <div class="profile-pic-default flex h-24 w-24 items-center justify-center border border-dashed border-zinc-400">
+        <span class="label">pic</span>
       </div>
     </div>
     <div class="contactInfo">
       <h1 class="nametext text-2xl font-bold">
         <%= @profile&.user&.display_name.presence || "Your Name" %>
       </h1>
-      <p class="username text-sm">@<%= @profile&.user&.username || "username" %></p>
-      <p class="greeting"><%= @profile&.user&.greeting.presence || "welcome to my page" %></p>
-      <p class="mood"><%= @profile&.user&.mood.presence || "mood" %></p>
+      <p class="username label mt-1">@<%= @profile&.user&.username || "username" %></p>
+      <p class="greeting mt-2"><%= @profile&.user&.greeting.presence || "welcome to my page" %></p>
+      <p class="mood mt-1"><%= @profile&.user&.mood.presence || "mood" %></p>
     </div>
   </div>
 
-  <div id="profile" class="profile-page mt-4">
+  <div id="profile" class="profile-page mt-6">
     <% if @profile&.document.present? %>
       <%= @profile.rendered.html %>
     <% else %>
@@ -52,23 +49,23 @@
     <% end %>
   </div>
 
-  <section id="blurbs" class="mt-6">
+  <section id="blurbs" class="mt-8">
     <article class="blurb">
-      <h2 class="blurb-title">Interests</h2>
+      <h2 class="blurb-title orangetext15">Interests</h2>
       <p>modems, the sound of a 56k handshake, guestbooks</p>
     </article>
   </section>
 
-  <section class="friendSpace mt-6">
+  <section class="friendSpace mt-8">
     <h2 class="orangetext15">friends</h2>
-    <ul class="top8">
-      <li class="friend"><span>friend</span></li>
-      <li class="friend"><span>friend</span></li>
-      <li class="friend"><span>friend</span></li>
+    <ul class="top8 flex gap-4">
+      <li class="friend">friend</li>
+      <li class="friend">friend</li>
+      <li class="friend">friend</li>
     </ul>
   </section>
 
-  <section id="comments" class="comments mt-6">
+  <section id="comments" class="comments mt-8">
     <h2 class="orangetext15">comments</h2>
     <div class="comment">
       <span class="nametext">a visitor</span>
@@ -77,7 +74,7 @@
   </section>
 </article>
 
-<details class="mt-6">
-  <summary class="cursor-pointer text-sm text-zinc-400">The stylesheet</summary>
-  <pre class="mt-2 overflow-x-auto rounded border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs text-zinc-300"><%= @layout.css %></pre>
+<details class="mt-8">
+  <summary class="label cursor-pointer hover:text-zinc-200">The stylesheet</summary>
+  <pre class="mt-3 overflow-x-auto border border-zinc-800 bg-zinc-950 p-3 text-xs text-zinc-300"><%= @layout.css %></pre>
 </details>

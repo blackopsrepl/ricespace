@@ -1,37 +1,37 @@
 <% content_for :title, "Layouts — RiceSpace" %>
 
-<h1 class="text-2xl font-bold tracking-tight">Layouts</h1>
-<p class="mt-2 max-w-2xl text-sm text-zinc-400">
-  A stylesheet somebody wrote for a profile page. Applying one adds its rules to yours — it does not
-  replace them, so your own rules still win on the parts you changed.
-</p>
-
-<div class="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-  <% @layouts.each do |layout| %>
-    <article class="layout-card rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
-      <h2 class="layout-name font-semibold text-zinc-100"><%= layout.name %></h2>
-      <p class="mt-1 text-xs text-zinc-500">by <%= layout.author %></p>
-      <p class="mt-3 text-sm text-zinc-400"><%= layout.description %></p>
-
-      <%# A swatch of the layout's own first colours, so the card is not a paragraph
-          about a stylesheet. %>
-      <div class="mt-4 h-24 overflow-hidden rounded border border-zinc-800 bg-zinc-950 p-2 font-mono text-[10px] leading-tight text-zinc-500">
-        <%= truncate(layout.css, length: 260) %>
-      </div>
-
-      <div class="mt-4 flex flex-wrap items-center gap-3 text-sm">
-        <%= link_to "Preview", layout_path(layout), class: "text-fuchsia-400 hover:text-fuchsia-300" %>
-        <% if signed_in? %>
-          <%= button_to "Use this layout", apply_layout_path(layout), method: :post,
-                class: "rounded bg-fuchsia-500 px-3 py-1.5 text-xs font-medium text-zinc-950 hover:bg-fuchsia-400" %>
-        <% end %>
-      </div>
-    </article>
-  <% end %>
-</div>
-
-<% if @layouts.empty? %>
-  <p class="rounded-lg border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">
-    No layouts published yet.
+<header class="mb-10">
+  <h1 class="text-3xl font-semibold tracking-tight">Layouts</h1>
+  <p class="mt-3 max-w-2xl text-zinc-400">
+    A stylesheet somebody wrote for a profile page. Wearing one layers its rules under
+    yours — it does not replace them, so the parts you changed stay yours. Taking one is
+    different: it replaces your rules, because the copy is the point.
   </p>
+</header>
+
+<% if @layouts.any? %>
+  <ul class="grid gap-px border border-zinc-800 sm:grid-cols-2 lg:grid-cols-3">
+    <% @layouts.each do |layout| %>
+      <li class="layout-card panel">
+        <div class="p-4">
+          <h2 class="layout-name font-semibold text-zinc-100"><%= layout.name %></h2>
+          <p class="label mt-2">by <%= layout.author %></p>
+          <p class="mt-3 text-sm text-zinc-500"><%= layout.description %></p>
+        </div>
+
+        <%# A swatch of the layout's own first colours, so the card is not a paragraph
+            about a stylesheet. %>
+        <pre class="h-28 overflow-hidden border-y border-zinc-800 bg-zinc-950 p-3 text-[10px] leading-tight text-zinc-500"><%= truncate(layout.css, length: 300) %></pre>
+
+        <div class="flex flex-wrap items-center gap-2 p-4">
+          <%= link_to "Preview", layout_path(layout), class: "btn" %>
+          <% if signed_in? %>
+            <%= button_to "Wear this layout", apply_layout_path(layout), method: :post, class: "btn btn-primary" %>
+          <% end %>
+        </div>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p class="border border-dashed border-zinc-800 p-8 text-zinc-400">No layouts published yet.</p>
 <% end %>
