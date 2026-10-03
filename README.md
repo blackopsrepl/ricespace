@@ -1,5 +1,7 @@
 # RiceSpace
 
+<img src="docs/assets/ricespace-mascot.png" alt="RiceSpace mascot — a rice-grain CRT with a monitor-cable antenna" width="200">
+
 A page per account, written in HTML and CSS by whoever owns the account.
 
 That is the whole product. A profile here is a real page — markup, and a `<style>`
