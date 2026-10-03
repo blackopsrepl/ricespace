@@ -1,0 +1,100 @@
+/* name: Blacklight
+   author: RiceSpace
+   description: Black page, neon text, everything boxed. The one everybody had. */
+
+body {
+  background-color: #000000;
+  background-image: url(https://placehold.co/400x400/080808/00ffff.png);
+  color: #00ffff;
+  font-family: Verdana, Arial, sans-serif;
+  font-size: 12px;
+}
+
+a, a:link, a:visited { color: #ff00ff; }
+a:hover { color: #ffff00; background-color: #220022; }
+
+#site-header, footer { display: none; }
+
+main {
+  max-width: none;
+  padding: 0;
+}
+
+.contactTable {
+  position: absolute;
+  left: 50%;
+  top: 24px;
+  width: 780px;
+  margin-left: -390px;
+  border: 4px ridge #00ffff;
+  background-color: #001111;
+  padding: 10px;
+}
+
+.profile-pic img {
+  border: 2px solid #ff00ff;
+  float: left;
+  margin-right: 12px;
+}
+
+.nametext {
+  color: #ff00ff;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.greeting { color: #ffff00; }
+.mood { color: #00ff88; font-style: italic; }
+
+#profile {
+  width: 780px;
+  margin: 150px auto 0;
+  text-align: center;
+}
+
+#blurbs, .friendSpace, .comments {
+  width: 780px;
+  margin: 16px auto 0;
+}
+
+.blurb {
+  border: 2px dashed #ff00ff;
+  background-color: #001111;
+  padding: 8px;
+  margin-top: 10px;
+  text-align: left;
+}
+
+.blurb-title {
+  color: #ffff00;
+  text-align: center;
+  letter-spacing: 0.2em;
+  margin: 0 0 4px;
+}
+
+.top8 {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0;
+}
+
+.friend {
+  width: 84px;
+  text-align: center;
+}
+
+.friend img, .friend span {
+  border: 1px solid #00ffff;
+}
+
+.comment {
+  border: 1px dotted #00ffff;
+  background-color: #001111;
+  padding: 6px;
+  margin-bottom: 6px;
+}
+
+#profile-stamp { visibility: hidden; }

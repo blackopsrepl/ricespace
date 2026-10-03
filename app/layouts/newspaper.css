@@ -1,0 +1,69 @@
+/* name: Newspaper
+   author: RiceSpace
+   description: Parchment background, serif headings, a page that looks printed. */
+
+body {
+  background-color: #f4ecd8;
+  background-image: url(https://placehold.co/200x200/f4ecd8/d8c9a8.png);
+  color: #2b2118;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 14px;
+}
+
+a, a:link, a:visited { color: #7b1e1e; }
+
+#site-header, footer { display: none; }
+
+main { max-width: none; padding: 0; }
+
+.contactTable {
+  width: 720px;
+  margin: 24px auto 0;
+  border-bottom: 3px double #2b2118;
+  padding-bottom: 12px;
+  text-align: center;
+}
+
+.profile-pic img {
+  border: 4px solid #2b2118;
+  filter: grayscale(1);
+}
+
+.nametext {
+  font-size: 32px;
+  letter-spacing: 0.05em;
+  margin: 8px 0 0;
+}
+
+.greeting { font-style: italic; }
+
+#profile, #blurbs, .friendSpace, .comments {
+  width: 720px;
+  margin: 20px auto 0;
+}
+
+#profile { columns: 2; column-gap: 28px; }
+
+.blurb {
+  border-top: 1px solid #2b2118;
+  padding-top: 6px;
+  margin-top: 14px;
+}
+
+.blurb-title {
+  font-variant: small-caps;
+  letter-spacing: 0.15em;
+  text-transform: lowercase;
+  margin: 0 0 4px;
+}
+
+.top8 { list-style: none; display: flex; flex-wrap: wrap; gap: 12px; padding: 0; }
+.friend { width: 88px; text-align: center; }
+
+.comment {
+  border-left: 3px solid #7b1e1e;
+  padding-left: 8px;
+  margin-bottom: 8px;
+}
+
+#profile-stamp { display: none; }

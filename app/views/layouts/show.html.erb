@@ -1,0 +1,83 @@
+<% content_for :title, "#{@layout.name} — RiceSpace" %>
+
+<div class="mb-6 flex flex-wrap items-baseline justify-between gap-3">
+  <div>
+    <h1 class="text-2xl font-bold tracking-tight"><%= @layout.name %></h1>
+    <p class="mt-1 text-xs text-zinc-500">by <%= @layout.author %> — <%= @layout.description %></p>
+  </div>
+  <div class="flex items-center gap-3 text-sm">
+    <%= link_to "All layouts", layouts_path, class: "text-zinc-400 hover:text-zinc-100" %>
+    <% if signed_in? %>
+      <%= button_to "Use this layout", apply_layout_path(@layout), method: :post,
+            class: "rounded bg-fuchsia-500 px-3 py-1.5 text-xs font-medium text-zinc-950 hover:bg-fuchsia-400" %>
+    <% end %>
+  </div>
+</div>
+
+<p class="mb-4 text-sm text-zinc-500">
+  Previewing against
+  <% if @profile %>your page<% else %>an empty page<% end %> —
+  <%= link_to "sign in", new_session_path, class: "text-fuchsia-400 hover:text-fuchsia-300" %> to see it
+  against your own parts.
+</p>
+
+<%# The layout rendered exactly as it renders on a page: written into the document
+    after everything the site loads, over the same anatomy. %>
+<%= author_stylesheet(@layout.css) %>
+
+<article class="layout-preview rounded border border-zinc-800 bg-white p-6 text-zinc-900">
+  <div class="contactTable flex items-start gap-4">
+    <div class="profile-pic">
+      <div class="profile-pic-default flex h-24 w-24 items-center justify-center rounded border border-dashed border-zinc-400 text-xs text-zinc-500">
+        pic
+      </div>
+    </div>
+    <div class="contactInfo">
+      <h1 class="nametext text-2xl font-bold">
+        <%= @profile&.user&.display_name.presence || "Your Name" %>
+      </h1>
+      <p class="username text-sm">@<%= @profile&.user&.username || "username" %></p>
+      <p class="greeting"><%= @profile&.user&.greeting.presence || "welcome to my page" %></p>
+      <p class="mood"><%= @profile&.user&.mood.presence || "mood" %></p>
+    </div>
+  </div>
+
+  <div id="profile" class="profile-page mt-4">
+    <% if @profile&.document.present? %>
+      <%= @profile.rendered.html %>
+    <% else %>
+      <center><h1>Your page</h1></center>
+      <marquee>your markup goes here</marquee>
+      <p>Paste a layout, then write over it.</p>
+    <% end %>
+  </div>
+
+  <section id="blurbs" class="mt-6">
+    <article class="blurb">
+      <h2 class="blurb-title">Interests</h2>
+      <p>modems, the sound of a 56k handshake, guestbooks</p>
+    </article>
+  </section>
+
+  <section class="friendSpace mt-6">
+    <h2 class="orangetext15">friends</h2>
+    <ul class="top8">
+      <li class="friend"><span>friend</span></li>
+      <li class="friend"><span>friend</span></li>
+      <li class="friend"><span>friend</span></li>
+    </ul>
+  </section>
+
+  <section id="comments" class="comments mt-6">
+    <h2 class="orangetext15">comments</h2>
+    <div class="comment">
+      <span class="nametext">a visitor</span>
+      <p class="comment-body">nice page</p>
+    </div>
+  </section>
+</article>
+
+<details class="mt-6">
+  <summary class="cursor-pointer text-sm text-zinc-400">The stylesheet</summary>
+  <pre class="mt-2 overflow-x-auto rounded border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs text-zinc-300"><%= @layout.css %></pre>
+</details>
