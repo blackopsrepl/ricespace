@@ -1,0 +1,103 @@
+<% content_for :title, "Studio — RiceSpace" %>
+
+<h1 class="text-2xl font-bold tracking-tight">Studio</h1>
+<p class="mt-1 text-sm text-zinc-500">
+  You are signed in as <strong class="text-zinc-300">@<%= current_user.username %></strong>.
+  <%= link_to "See your page", profile_path(current_user), class: "text-fuchsia-400 hover:text-fuchsia-300" %>
+</p>
+
+<% if @issued_token.present? %>
+  <section class="mt-6 rounded-lg border border-fuchsia-700 bg-fuchsia-950/40 p-5">
+    <h2 class="font-semibold text-fuchsia-200">Your new agent token</h2>
+    <p class="mt-1 text-sm text-fuchsia-200/80">
+      This is the only time it is shown. Hand it to your coding agent; if you lose it, revoke it and
+      issue another.
+    </p>
+    <pre class="mt-3 overflow-x-auto rounded border border-fuchsia-800 bg-zinc-950 p-3 font-mono text-xs text-fuchsia-100"><%= @issued_token %></pre>
+    <p class="mt-3 text-xs text-fuchsia-200/70">
+      Tell your agent to read <%= link_to agents_markdown_path, agents_markdown_path, class: "underline" %> first.
+    </p>
+  </section>
+<% end %>
+
+<section class="mt-8">
+  <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-500">Your page markup</h2>
+
+  <% if @conflicted %>
+    <p class="mt-3 rounded border border-amber-700 bg-amber-950/50 p-3 text-sm text-amber-200">
+      Somebody — most likely your own agent — wrote this page while you were editing it, so your save
+      was refused. What you typed is still in the editor below; saving again replaces their version
+      with yours.
+    </p>
+  <% end %>
+
+  <% if @profile.errors.any? %>
+    <ul class="mt-3 space-y-1 rounded border border-red-800 bg-red-950/60 p-3 text-sm text-red-200">
+      <% @profile.errors.full_messages.each do |message| %>
+        <li><%= message %></li>
+      <% end %>
+    </ul>
+  <% end %>
+
+  <%= form_with model: @profile, url: studio_path, method: :patch, class: "mt-3" do |form| %>
+    <%# The revision this editor was showing. It is how a save can tell that the
+        page moved underneath it. %>
+    <%= form.hidden_field :version, value: @profile.version %>
+    <%= form.text_area :document, rows: 22, spellcheck: false,
+          class: "w-full rounded-lg border border-zinc-700 bg-zinc-950 p-4 font-mono text-xs leading-relaxed text-zinc-200 focus:border-fuchsia-500 focus:outline-none",
+          placeholder: "<h1>Vittorio</h1>\n<marquee>welcome to my page</marquee>" %>
+    <div class="mt-3 flex flex-wrap items-center gap-3">
+      <%= form.submit "Save page",
+            class: "rounded bg-fuchsia-500 px-4 py-2 text-sm font-medium text-zinc-950 hover:bg-fuchsia-400" %>
+      <span class="text-xs text-zinc-500">
+        Saved markup is sanitized when it is shown, never when it is stored — so tightening the rules
+        later applies to every page at once.
+      </span>
+    </div>
+  <% end %>
+</section>
+
+<section class="mt-10 border-t border-zinc-800 pt-6">
+  <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-500">Agent tokens</h2>
+  <p class="mt-2 max-w-2xl text-sm text-zinc-400">
+    A token lets one coding agent read and replace this page over the HTTP API, with no browser and
+    no session. Revoke it when the agent no longer needs it.
+  </p>
+
+  <%= form_with scope: :agent_token, url: agent_tokens_path, class: "mt-4 flex flex-wrap items-center gap-2" do |form| %>
+    <%= form.text_field :name, placeholder: "Claude Code", required: true,
+          class: "rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-fuchsia-500 focus:outline-none" %>
+    <%= form.submit "Issue token",
+          class: "rounded border border-zinc-700 px-3 py-2 text-sm text-zinc-200 hover:border-zinc-500" %>
+  <% end %>
+
+  <% if @tokens.any? %>
+    <table class="mt-5 w-full text-left text-sm">
+      <thead class="text-xs uppercase tracking-wider text-zinc-500">
+        <tr>
+          <th class="py-2 font-medium">Name</th>
+          <th class="py-2 font-medium">Issued</th>
+          <th class="py-2 font-medium">Last used</th>
+          <th class="py-2"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-zinc-800">
+        <% @tokens.each do |token| %>
+          <tr>
+            <td class="py-2 text-zinc-200"><%= token.name %></td>
+            <td class="py-2 text-zinc-500"><%= token.created_at.to_date.to_fs(:long) %></td>
+            <td class="py-2 text-zinc-500">
+              <%= token.last_used_at ? "#{time_ago_in_words(token.last_used_at)} ago" : "never" %>
+            </td>
+            <td class="py-2 text-right">
+              <%= button_to "Revoke", agent_token_path(token), method: :delete,
+                    class: "text-xs text-red-400 hover:text-red-300" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  <% else %>
+    <p class="mt-4 text-sm text-zinc-500">No tokens yet.</p>
+  <% end %>
+</section>
