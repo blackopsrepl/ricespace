@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_090000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_100000) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -142,6 +142,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_090000) do
     t.index ["user_id"], name: "index_profiles_on_user_id", unique: true
   end
 
+  create_table "ratings", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.integer "author_id", null: false
+    t.integer "score", default: 1, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_id"], name: "index_ratings_on_author_id"
+    t.index ["user_id", "author_id"], name: "index_ratings_on_user_id_and_author_id", unique: true
+    t.index ["user_id", "score"], name: "index_ratings_on_user_id_and_score"
+  end
+
   create_table "showcase_shots", force: :cascade do |t|
     t.integer "showcase_id", null: false
     t.string "caption"
@@ -208,6 +219,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_090000) do
   add_foreign_key "friendships", "users", column: "friend_id"
   add_foreign_key "profile_pictures", "users"
   add_foreign_key "profiles", "users"
+  add_foreign_key "ratings", "users"
+  add_foreign_key "ratings", "users", column: "author_id"
   add_foreign_key "showcase_shots", "showcases"
   add_foreign_key "showcases", "users"
   add_foreign_key "stream_links", "users"
