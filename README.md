@@ -34,7 +34,7 @@ Then:
 |---|---|
 | **Your markup** | Real HTML and a `<style>` block. Deprecated tags from the era — `<marquee>`, `<font>`, `<center>`, `<table>` — all work. |
 | **Your rice** | A screenshot of your setup, plus the facts: hardware, window manager, bar, terminal, font, theme. |
-| **Layouts** | Published stylesheets you can wear, or take off someone else's page. |
+| **Layouts** | Published stylesheets you can wear, or take off someone else's page. The eight Omarchy themes ship as layouts — Tokyo Night, Catppuccin, Lumon, Ethereal, Everforest, Gruvbox, Miasma, Hackerman — built from each theme's own colours. |
 | **The rest** | Picture, greeting and mood, blurbs, a profile song, a friends list, videos and streams, demoscene demos, hardware builds. |
 
 <img src="docs/assets/screens/layouts.png" alt="The layouts you can wear" width="720">
@@ -50,6 +50,41 @@ you silently overwrites the other. The contract is
 
 There is a command-line client in [`cli/`](cli/) — `ricespace login`, `ricespace
 page show`, `ricespace page rice`, and so on.
+
+## Working in a folder
+
+You can also keep your whole page as **files on your own machine** — edit them in
+your editor, see the page drawn locally, and push when you are happy. This is the
+`ricespace` client, and it is the same page the studio edits, with the same revision
+check in front of it.
+
+    ricespace folder clone myspace    # write your space out as files
+    cd myspace
+    $EDITOR page.html                 # the markup, and a <style> block
+    ricespace folder preview          # open the address it prints
+    ricespace folder push             # shows the diff, then sends it
+    ricespace folder watch            # or: push on every save
+
+A folder holds your page in the API's own shapes, one file each, so nothing has to be
+kept in step:
+
+| | |
+|---|---|
+| `page.html` | your markup, exactly as stored |
+| `rice.json` | the rice's facts — hardware, window manager, bar, terminal, font, theme |
+| `blurbs.json`, `demos.json`, `builds.json`, `links.json`, `friends.json` | one file per list |
+| `assets/` | the pictures themselves |
+| `ricespace.toml` | which space the folder belongs to |
+
+**The token is not in the folder.** A folder is a thing you put in git; the token
+stays in `~/.config/ricespace/config.toml`.
+
+`preview` does not draw the page itself — it hands the folder to the running site,
+which renders it with [`ProfileMarkup`](app/models/profile_markup.rb) and
+[`PageCss`](app/models/page_css.rb), the code that owns those rules. A `<script>` is
+gone in the preview because it will be gone on the site, and a `<marquee>` runs in
+the preview because it will run on the site. A preview that guessed would be worse
+than none.
 
 ## Who runs the place
 

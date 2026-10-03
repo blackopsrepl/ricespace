@@ -38,9 +38,26 @@ the ceiling belongs to whoever uploads most.
 **Done when** each account has a stated cap on stored bytes, uploading past it is
 refused with a message that says so, and the cap is one number in one place.
 
+**Done.** The cap is `User::STORAGE_LIMIT`, and `CountedTowardStorage` (included by
+`ProfilePicture`, `ShowcaseShot` and `BuildPhoto`) is what applies it, so it holds on
+the studio's forms and on the API's `POST /api/v1/images` alike — an earlier version
+had the number in the API controller, which left the browser path unbounded.
+
 ## Next
 
-### 4. Put it back on a host
+### 4. A folder that is your page
+
+**Problem.** The studio is the only way to edit a page, and a page is a document
+somebody writes. There is no way to keep your page as files, edit it in your own
+editor, or see it drawn before it is published.
+
+**Done when** `ricespace folder clone/push/preview/watch` work end to end: the folder
+holds the page in the API's own shapes, `preview` draws it with the site's own cleaner
+rather than a second implementation of it, and `push` sends what changed and nothing
+else. **Done** — see "Working in a folder" in the README. `preview` and `watch` need
+the site running, which is the price of a preview that cannot lie about the rules.
+
+### 5. Put it back on a host
 
 The space ran on the DMZ VM behind a cloudflared quick tunnel, whose hostname
 changes on every restart — fine for showing it to somebody, wrong for a URL anyone
@@ -48,12 +65,12 @@ writes down. It is local again while that is decided. The DMZ host already runs 
 named cloudflared tunnel, so a fixed address is a dashboard entry and a choice of
 domain, not code.
 
-### 5. An installable CLI
+### 6. An installable CLI
 
 `cli/` is a working Rust client — `ricespace login`, `page show`, `page links`,
-`page rice`. `cli/install.sh` installs it into a prefix with generated shell
-completions. What is missing is distribution: a tagged release, a built binary per
-platform, and a README line that says how to get it.
+`page rice`, `folder clone|push|preview|watch`. `cli/install.sh` installs it into a
+prefix with generated shell completions. What is missing is distribution: a tagged
+release, a built binary per platform, and a README line that says how to get it.
 
 ## Later
 
@@ -74,3 +91,11 @@ platform, and a README line that says how to get it.
 - **Moderation tooling.** Comments are signed in because an unaccountable author is
   the actual problem; a second system for hiding what an accountable author wrote
   is a different product.
+- **A feed.** There is no stream and nothing arrives on the front page on its own.
+  You find a page because somebody showed it to you, or because other people rated
+  it — not because an algorithm decided you should see it. The front page is still a
+  directory; it now has a ranking in it, which is the old kind and not a feed.
+- **Two rankings.** There is one number per page and one list. Likes move it up and
+  dislikes move it down, and the page says neither — the score is the whole of what a
+  visitor is told, because a site that explains how to game its ranking is a site
+  whose ranking is gamed.

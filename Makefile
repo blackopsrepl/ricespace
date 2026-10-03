@@ -63,6 +63,12 @@ help:
 	@printf -- "    $(BOLD)make cli$(RESET)          $(DIM)build the ricespace client$(RESET)\n"
 	@printf -- "    $(BOLD)make cli-test$(RESET)     $(DIM)its tests$(RESET)\n"
 	@printf -- "    $(BOLD)make install$(RESET)      $(DIM)install it into ~/.local, with completions$(RESET)\n\n"
+	@printf -- "  $(AMBER)a folder that is your space$(RESET)\n"
+	@printf -- "    $(BOLD)ricespace folder clone$(RESET)   $(DIM)write your page out as files$(RESET)\n"
+	@printf -- "    $(BOLD)ricespace folder preview$(RESET) $(DIM)draw the folder, with the site's own cleaner$(RESET)\n"
+	@printf -- "    $(BOLD)ricespace folder push$(RESET)    $(DIM)send the folder; shows the diff first$(RESET)\n"
+	@printf -- "    $(BOLD)ricespace folder watch$(RESET)   $(DIM)push on save — editor on one side, your page on the other$(RESET)\n"
+	@printf -- "    $(DIM)make serve must be running for preview and watch$(RESET)\n\n"
 
 # ============== Banner (every real target wears it) ==============
 banner:
