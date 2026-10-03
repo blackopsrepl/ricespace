@@ -20,10 +20,24 @@ class User < ApplicationRecord
   MINIMUM_PASSWORD_LENGTH = 12
 
   has_one :profile, dependent: :destroy
+  has_one :profile_picture, dependent: :destroy
   has_many :agent_tokens, dependent: :destroy
+
+  # This account's page: the people on its friends list, the blocks of text its
+  # owner wrote, and the comments other people left on it.
+  has_many :friendships, dependent: :destroy
+  has_many :friends, through: :friendships, source: :friend
+  has_many :blurbs, dependent: :destroy
+  has_many :comments, dependent: :destroy
+
+  # Where this account appears on somebody else's page. Destroying the account
+  # removes it from their lists rather than leaving a hole.
+  has_many :reverse_friendships, class_name: "Friendship", foreign_key: :friend_id, dependent: :destroy
 
   normalizes :email_address, with: ->(value) { value.to_s.strip.downcase }
   normalizes :username, with: ->(value) { value.to_s.strip.downcase }
+  normalizes :greeting, with: ->(value) { value.to_s.strip }
+  normalizes :mood, with: ->(value) { value.to_s.strip }
 
   validates :email_address, presence: true,
     format: { with: URI::MailTo::EMAIL_REGEXP },
@@ -34,6 +48,9 @@ class User < ApplicationRecord
     exclusion: { in: RESERVED_USERNAMES, message: "is reserved" }
   validates :name, length: { maximum: 60 }, allow_blank: true
   validates :headline, length: { maximum: 140 }, allow_blank: true
+  # The greeting is the line across the top of the page, so it is one line.
+  validates :greeting, length: { maximum: 140 }, allow_blank: true
+  validates :mood, length: { maximum: 40 }, allow_blank: true
   validates :password, length: { minimum: MINIMUM_PASSWORD_LENGTH }, allow_nil: true
 
   after_create { build_profile.save! unless profile }
