@@ -19,12 +19,16 @@ ARROW := =>
 PROGRESS := ..
 
 # ============== Project Metadata ==============
-VERSION := $(shell sed -n 's/^version = "\(.*\)"/\1/p' cli/Cargo.toml | head -1)
+VERSION := $(shell sed -n 's/^  VERSION = "\(.*\)"/\1/p' cli/lib/ricespace/version.rb | head -1)
 PORT ?= 3000
 RAILS ?= bin/rails
 BIN ?= ./bin
 DEPLOY_HOST ?=
 DEPLOY_PATH ?=
+
+# The client, run from where it lives in the repository. No build step: it is Ruby, and it
+# is the same interpreter the site runs on.
+CLI := cli/exe/ricespace
 
 # The banner, in one place so every target wears the same one.
 define BANNER
@@ -60,9 +64,9 @@ help:
 	@printf -- "    $(BOLD)make routes$(RESET)       $(DIM)every route$(RESET)\n"
 	@printf -- "    $(BOLD)make console$(RESET)      $(DIM)Rails console$(RESET)\n\n"
 	@printf -- "  $(AMBER)the CLI$(RESET)\n"
-	@printf -- "    $(BOLD)make cli$(RESET)          $(DIM)build the ricespace client$(RESET)\n"
+	@printf -- "    $(BOLD)make cli$(RESET)          $(DIM)run the client — no build step, it is Ruby$(RESET)\n"
 	@printf -- "    $(BOLD)make cli-test$(RESET)     $(DIM)its tests$(RESET)\n"
-	@printf -- "    $(BOLD)make install$(RESET)      $(DIM)cargo install it, then write completions$(RESET)\n\n"
+	@printf -- "    $(BOLD)make install$(RESET)      $(DIM)put it on your PATH, then write completions$(RESET)\n\n"
 	@printf -- "  $(AMBER)a folder that is your space$(RESET)\n"
 	@printf -- "    $(BOLD)ricespace folder clone$(RESET)   $(DIM)write your page out as files$(RESET)\n"
 	@printf -- "    $(BOLD)ricespace folder preview$(RESET) $(DIM)draw the folder, with the site's own cleaner$(RESET)\n"
@@ -144,39 +148,44 @@ db-reset:
 	@printf -- "$(GREEN)$(CHECK)$(RESET) rebuilt\n\n"
 
 # ============== The CLI ==============
+# Ruby, so there is nothing to build. `make cli` exists so the help has something to point
+# at and so the client can be run before it is installed anywhere.
 cli:
 	@$(MAKE) --no-print-directory banner
-	@printf -- "$(CYAN)$(ARROW)$(RESET) building the client\n"
-	@cd cli && cargo build --release 2>&1 | tail -3
-	@printf -- "$(GREEN)$(CHECK)$(RESET) cli/target/release/ricespace\n\n"
+	@printf -- "$(CYAN)$(ARROW)$(RESET) the client is Ruby — nothing to build\n"
+	@$(CLI) --version
+	@printf -- "$(GREEN)$(CHECK)$(RESET) $(AMBER)$(CLI)$(RESET)\n\n"
 
 cli-test:
 	@$(MAKE) --no-print-directory banner
-	@cd cli && cargo test 2>&1 | tail -6
+	@printf -- "$(CYAN)$(ARROW)$(RESET) the client's own tests\n"
+	@ruby -Icli/lib cli/test/ricespace_test.rb
 
 install: cli
-	@printf -- "$(CYAN)$(ARROW)$(RESET) installing the client with cargo\n"
-	@cargo install --path cli --force
-	@printf -- "$(GREEN)$(CHECK)$(RESET) $(AMBER)ricespace$(RESET) is on your PATH\n"
+	@printf -- "$(CYAN)$(ARROW)$(RESET) installing the gem\n"
+	@cd cli && gem build ricespace.gemspec --quiet 2>/dev/null && \
+		gem install --quiet --user-install ./ricespace-*.gem 2>&1 | tail -2 && \
+		rm -f ./ricespace-*.gem || \
+		{ printf -- "$(YELLOW)could not install the gem — run it as $(AMBER)$(CLI)$(RESET)\n"; }
+	@printf -- "$(GREEN)$(CHECK)$(RESET) $(AMBER)ricespace$(RESET) is installed\n"
 	@$(MAKE) --no-print-directory completions-install
 
 # The completion files a shell reads on its own, written where each one already looks so
-# nobody has to source anything. Generated from the binary rather than written by hand, so
+# nobody has to source anything. Generated from the client rather than written by hand, so
 # they cannot drift from the flags.
-completions-install: cli
+completions-install:
 	@printf -- "$(CYAN)$(ARROW)$(RESET) writing shell completions\n"
 	@mkdir -p $(HOME)/.local/share/bash-completion/completions
 	@mkdir -p $(HOME)/.local/share/zsh/site-functions
 	@mkdir -p $(HOME)/.local/share/fish/vendor_completions.d
-	@cli/target/release/ricespace completions bash > $(HOME)/.local/share/bash-completion/completions/ricespace 2>/dev/null || true
-	@cli/target/release/ricespace completions zsh > $(HOME)/.local/share/zsh/site-functions/_ricespace 2>/dev/null || true
-	@cli/target/release/ricespace completions fish > $(HOME)/.local/share/fish/vendor_completions.d/ricespace.fish 2>/dev/null || true
+	@$(CLI) completions bash > $(HOME)/.local/share/bash-completion/completions/ricespace 2>/dev/null || true
+	@$(CLI) completions zsh > $(HOME)/.local/share/zsh/site-functions/_ricespace 2>/dev/null || true
+	@$(CLI) completions fish > $(HOME)/.local/share/fish/vendor_completions.d/ricespace.fish 2>/dev/null || true
 	@printf -- "$(GREEN)$(CHECK)$(RESET) completions for bash, zsh and fish\n\n"
 
 completions:
 	@$(MAKE) --no-print-directory banner
-	@cli/target/release/ricespace completions $${SHELL##*/} 2>/dev/null || \
-		printf -- "$(YELLOW)build it first: make cli$(RESET)\n"
+	@$(CLI) completions $${SHELL##*/}
 
 # ============== The space itself ==============
 url:
@@ -186,7 +195,7 @@ deploy:
 	@$(MAKE) --no-print-directory banner
 	@test -n "$(DEPLOY_HOST)" || { printf -- "$(RED)set DEPLOY_HOST and DEPLOY_PATH to deploy$(RESET)\n"; exit 1; }
 	@printf -- "$(CYAN)$(ARROW)$(RESET) rsync $(ARROW) $(AMBER)$(DEPLOY_HOST)$(RESET)\n"
-	@rsync -az --delete --exclude '.git' --exclude 'cli/target' --exclude 'tmp/' \
+	@rsync -az --delete --exclude '.git' --exclude 'tmp/' \
 		--exclude 'log/' --exclude 'vendor/' --exclude 'storage/' --exclude '.bundle' \
 		-e ssh ./ "$(DEPLOY_HOST):$(DEPLOY_PATH)/"
 	@printf -- "$(CYAN)$(ARROW)$(RESET) migrate, seed, restart\n"
@@ -196,5 +205,5 @@ deploy:
 clean:
 	@$(MAKE) --no-print-directory banner
 	@$(RAILS) tmp:clear log:clear
-	@cd cli && cargo clean 2>/dev/null || true
+	@rm -f cli/ricespace-*.gem
 	@printf -- "$(GREEN)$(CHECK)$(RESET) cleared\n\n"

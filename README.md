@@ -53,20 +53,20 @@ page show`, `ricespace page rice`, `ricespace folder clone`, and so on.
 
 ## Installing the CLI
 
-    cargo install --git https://github.com/blackopsrepl/ricespace ricespace
+The client is Ruby, and it is the same interpreter the site runs on — no second language,
+no toolchain, no build step. It is a gem and it depends on nothing outside the standard
+library:
 
-From a checkout, or if you already have the repo:
+    gem install ricespace
 
-    make install          # cargo install, then write shell completions
-    cargo install --path cli
+From a checkout:
 
-`cargo install` is the whole distribution story. It is a Rust binary with no runtime
-dependencies, so it does not need an installer script, a release archive, or a download
-to be verified — cargo builds it from the source you can read and puts it where cargo
-puts binaries.
+    make install          # build and install the gem, then write shell completions
+    cli/exe/ricespace     # or just run it from here, with nothing installed
 
-`make install` also writes the bash, zsh and fish completion files, generated from the
-binary so they cannot drift from its flags.
+A gem is the whole distribution story: RubyGems puts the executable on your `PATH` and
+keeps it updatable. `make install` also writes the bash, zsh and fish completion files,
+generated from the client so they cannot drift from its flags.
 
 ## Working in a folder
 

@@ -6,3 +6,16 @@ inherit_gem: { rubocop-rails-omakase: rubocop.yml }
 # # Use `[a, [b, c]]` not `[ a, [ b, c ] ]`
 # Layout/SpaceInsideArrayLiteralBrackets:
 #   Enabled: false
+
+# The client is Ruby in this repository, so one linter covers the whole thing. Without
+# this RuboCop only walks the Rails app and the CLI is unlinted — which is most of the
+# value of having it be Ruby.
+AllCops:
+  NewCops: enable
+  Include:
+    - "cli/**/*.rb"
+    - "cli/exe/*"
+    - "tools/**/*.rb"
+  Exclude:
+    - "cli/**/*.gemspec"
+    - "db/schema.rb"

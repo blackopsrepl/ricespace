@@ -10,6 +10,9 @@ CI.run do
   step "Security: Brakeman code analysis", "bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error"
   step "Tests: Rails", "bin/rails test"
   step "Tests: Seeds", "env RAILS_ENV=test bin/rails db:seed:replant"
+  # The client. It is Ruby in this repository, so it is linted by the same RuboCop and
+  # tested by the same `make check` as the site — which is the reason it is Ruby.
+  step "Tests: CLI", "ruby -Icli/lib cli/test/ricespace_test.rb"
 
   # Optional: Run system tests
   # step "Tests: System", "bin/rails test:system"

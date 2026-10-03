@@ -77,14 +77,15 @@ domain, not code.
 
 ### 6. An installable CLI
 
-`cli/` is a working Rust client — `ricespace login`, `page show`, `page links`,
+`cli/` is a working Ruby client — `ricespace login`, `page show`, `page links`,
 `page rice`, `rate show|set`, `folder clone|push|preview|watch`.
 
-**Done.** `cargo install --git https://github.com/blackopsrepl/ricespace ricespace`, or
-`make install` from a checkout. It is a Rust binary with no runtime dependencies, so the
-distribution is `cargo install` and nothing else: no installer script, no release archive,
-no checksum to verify. `make install` also writes the bash, zsh and fish completions,
-generated from the binary.
+**Done.** `gem install ricespace`, or `make install` from a checkout. It is Ruby, which is
+the point: the site is Ruby, the API the client speaks is written in Ruby, and the people
+who run it have Ruby — so there is one language in the repository rather than two, and no
+build step between editing the client and running it. The gem depends on nothing outside
+the standard library. `make install` also writes the bash, zsh and fish completions,
+generated from the client so they cannot drift from its flags.
 
 ## Later
 
