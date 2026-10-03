@@ -36,7 +36,9 @@
     <%= javascript_importmap_tags %>
   </head>
 
-  <script type="module">
+  <%# `javascript_importmap_tags` picks up the nonce from the generator on its own;
+      this one is written out by hand, so it needs it named or it does not run. %>
+  <script type="module" nonce="<%= content_security_policy_nonce %>">
     // The profile song. Autoplay, as the era's pages did it — but browsers refuse
     // audible autoplay until the visitor has interacted with the page, so this starts
     // the track on the first interaction and does nothing if the browser says no.

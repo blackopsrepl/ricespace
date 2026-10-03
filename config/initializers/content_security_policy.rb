@@ -29,4 +29,16 @@ Rails.application.configure do
     policy.script_src      :self
     policy.style_src       :self, :unsafe_inline
   end
+
+  # Everything this site ships is an inline script — the importmap and the module
+  # entry point — and `script-src 'self'` blocks inline scripts outright. Without a
+  # nonce generator the nonce is empty on both sides and the whole client side is
+  # dead: Turbo never loads, so `data-turbo-confirm` never fires and the account
+  # panel deletes on the click. The generator is what makes the tags the layout
+  # emits runnable again.
+  #
+  # The nonce stays out of reach of a page's own markup: `ProfileMarkup` strips
+  # `<script>` entirely, and the value is per-request.
+  config.content_security_policy_nonce_generator = ->(_request) { SecureRandom.base64(16) }
+  config.content_security_policy_nonce_directives = %w[script-src]
 end
