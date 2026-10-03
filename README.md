@@ -79,7 +79,7 @@ fetch. Everything else about the layout is the author's.
 
 ## Who runs the place
 
-<img src="docs/assets/ron.png" alt="Ron — the friendly default first friend, with laser eyes" width="200">
+<img src="docs/assets/ron.png" alt="Ron — synthwave hypnotoad with Kenshiro scars and laser eyes" width="240">
 
 **Ron** is the site's own account and its admin (`db/seeds.rb`), and he is
 everybody's first friend: creating a page adds him to that account's friends list
