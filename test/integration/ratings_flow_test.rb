@@ -99,24 +99,29 @@ class RatingsFlowTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     body = response.body
-    assert_equal 0, loud.score, "the loud page's net score is nothing"
-    assert body.index("@loud") < body.index("@quiet"),
-      "a page six people reacted to outranks a page one person liked"
+    assert_equal 0, loud.score, "the controversial page's net score is nothing"
+    assert_equal 1, quiet.score
+    assert body.index("@quiet") < body.index("@loud"),
+      "a page with net +1 outranks a page with net 0, however reacted-to"
   end
 
-  test "a page nobody reacted to is not on the ranking, but a disliked one is" do
+  test "equal nets break ties on total reactions; unrated pages stay off" do
     unrated = User.create!(username: "unrated", email_address: "u@example.com", password: "correct horse battery")
-    @page.ratings.create!(author: @visitor, score: Rating::DISLIKE)
+    debated = User.create!(username: "debated", email_address: "d@example.com", password: "correct horse battery")
+
+    @page.ratings.create!(author: @visitor, score: Rating::LIKE)
+    debated.ratings.create!(author: @page, score: Rating::LIKE)
+    debated.ratings.create!(author: @visitor, score: Rating::LIKE)
+    debated.ratings.create!(author: unrated, score: Rating::DISLIKE)
 
     get root_url
 
     assert_response :success
-    # The ranking holds exactly the page somebody reacted to.
-    assert_select "#popular li", 1
+    # Both rated pages are on the list with net +1; the more-discussed one leads.
+    body = response.body
+    assert body.index("@debated") < body.index("@vittorio"),
+      "equal nets break toward the more-discussed page"
     assert_select "#popular a[href=?]", profile_path(unrated), count: 0
-    # A page people disliked is a page people reacted to — it is on the list, and it is
-    # the only thing on it. That is the point of ranking by reaction rather than by likes.
-    assert_select "#popular a[href=?]", profile_path(@page), count: 1
   end
 
   test "a visitor writes on somebody else's wall and on their own" do
