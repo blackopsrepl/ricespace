@@ -13,7 +13,6 @@ class ProfilesController < ApplicationController
 
   # How many friends a page lists, and how many comments it shows.
   TOP_FRIENDS = 24
-  COMMENTS_SHOWN = 20
 
   # The first eight are the ones the page shows first — the owner's order, which is
   # what made the list worth ordering at all.
@@ -29,14 +28,12 @@ class ProfilesController < ApplicationController
     @friends = @user.friendships.in_order.includes(:friend).map(&:friend).first(TOP_FRIENDS)
     @friend_count = @user.friendships.count
     @blurbs = @user.blurbs.in_order
-    @comments = @user.comments.includes(:author).recent_first.limit(COMMENTS_SHOWN)
     # The videos and streams, which are links to somebody else's service.
     @stream_links = @user.stream_links.order(:created_at)
     # The demoscene demos, which are their own category: the release facts are the entry.
     @demos = @user.demos.in_order
     # The hardware, which is a physical thing photographed rather than a desktop.
     @builds = @user.builds.in_order
-    @comment = Comment.new
     @can_edit = signed_in? && current_user == @user
 
     # Track views and last seen — the MySpace "viewed X times" and online status.
@@ -48,13 +45,12 @@ class ProfilesController < ApplicationController
 
     # What people think of this page, and what this visitor said. One grouped read for
     # the counts rather than three sums.
-    @score = @user.score
     @likes = @user.likes
     @dislikes = @user.dislikes
-    @my_rating = signed_in? && current_user != @user ? current_user.rating_for(@user) : nil
 
-    # The MySpace "Contacting" section state.
-    @favorited = signed_in? && current_user != @user ? current_user.favorited_users.include?(@user) : false
+    # Whether this account has blocked that one. The only state the page needs about the
+    # relationship between two accounts; a favourite had no number and no effect, so it is
+    # gone rather than kept as a second way to say "I like this".
     @blocked = signed_in? && current_user != @user ? current_user.blocked_users.include?(@user) : false
   end
 
@@ -106,21 +102,6 @@ class ProfilesController < ApplicationController
     current_user.profile_picture&.destroy!
 
     redirect_to studio_path, notice: "Profile picture removed."
-  end
-
-  # The MySpace "Contacting" section: add to favorites.
-  def favorite
-    target = User.find_by!(username: params[:username])
-    current_user.favorites.find_or_create_by!(favorited_user: target)
-    redirect_to profile_path(target), notice: "Added @#{target.username} to your favorites."
-  rescue ActiveRecord::RecordInvalid => error
-    redirect_to profile_path(params[:username]), alert: error.record.errors.full_messages.to_sentence
-  end
-
-  def unfavorite
-    target = User.find_by!(username: params[:username])
-    current_user.favorites.find_by(favorited_user: target)&.destroy
-    redirect_to profile_path(target), notice: "Removed @#{target.username} from your favorites."
   end
 
   # Block a user — they can't see your page or comment on it.

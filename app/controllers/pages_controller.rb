@@ -62,22 +62,38 @@ class PagesController < ApplicationController
     # a page everybody loved and a page everybody hated are both more interesting than a
     # page nobody noticed, and this list says so.
     #
-    # One grouped read for the counts rather than a query per page. Ties break on the net
-    # score, so between two equally-reacted-to pages the better-liked one leads.
+    # A page's tally is the page plus everything posted on it, because that is how the page
+    # itself counts — see User#score. Liking the rice on somebody's page lifts the page.
+    #
+    # One grouped read for the tallies rather than a query per page, and one more to resolve
+    # which account each reacted-to thing belongs to. Ties break on the net score, so between
+    # two equally-reacted-to pages the better-liked one leads.
     def ranked_pages
-      counts = Rating.group(:user_id).pluck(
-        Arel.sql("user_id"),
+      tallies = Rating.group(:rateable_type, :rateable_id).pluck(
+        Arel.sql("rateable_type"),
+        Arel.sql("rateable_id"),
         Arel.sql("SUM(CASE WHEN score = 1 THEN 1 ELSE 0 END)"),
         Arel.sql("SUM(CASE WHEN score = -1 THEN 1 ELSE 0 END)")
-      ).to_h { |id, likes, dislikes| [ id, { likes: likes.to_i, dislikes: dislikes.to_i } ] }
+      ).to_h { |type, id, likes, dislikes| [ [ type, id ], { likes: likes.to_i, dislikes: dislikes.to_i } ] }
 
-      # A page nobody rated is not in this list; it belongs in the directory below.
-      counts.reject! { |_id, tally| (tally[:likes] + tally[:dislikes]).zero? }
-      return [] if counts.empty?
+      owners = owners_of(tallies.keys)
 
-      users = User.where(id: counts.keys).includes(:profile_picture).index_by(&:id)
+      per_page = Hash.new { |hash, key| hash[key] = { likes: 0, dislikes: 0 } }
+      tallies.each do |(type, id), tally|
+        owner_id = owners[[ type, id ]]
+        next if owner_id.nil?
 
-      counts
+        per_page[owner_id][:likes] += tally[:likes]
+        per_page[owner_id][:dislikes] += tally[:dislikes]
+      end
+
+      # A page nobody reacted to is not in this list; it belongs in the directory below.
+      per_page.reject! { |_id, tally| (tally[:likes] + tally[:dislikes]).zero? }
+      return [] if per_page.empty?
+
+      users = User.where(id: per_page.keys).includes(:profile_picture).index_by(&:id)
+
+      per_page
         .sort_by do |id, tally|
           total = tally[:likes] + tally[:dislikes]
           net = tally[:likes] - tally[:dislikes]
@@ -90,5 +106,35 @@ class PagesController < ApplicationController
           { user: user, net: tally[:likes] - tally[:dislikes], total: tally[:likes] + tally[:dislikes] }
         end
         .first(POPULAR_SHOWN)
+    end
+
+    # Which account each reacted-to thing belongs to, by `[type, id]`.
+    #
+    # A page belongs to itself; the things posted on a page belong to their owner. Resolved in
+    # one read per kind rather than per row, and by the same `owner` the models use, so the
+    # ranking cannot disagree with the page about whose rice it is.
+    def owners_of(pairs)
+      by_type = pairs.group_by(&:first)
+
+      owners = {}
+      by_type.each do |type, type_pairs|
+        klass = type.constantize
+        ids = type_pairs.map(&:last)
+
+        klass.where(id: ids).includes(owner_includes_for(klass)).each do |thing|
+          owner = thing.respond_to?(:owner) ? thing.owner : nil
+          owners[[ type, thing.id ]] = owner&.id
+        end
+      end
+      owners
+    end
+
+    # The association to preload so `owner` does not fire a query per thing.
+    def owner_includes_for(klass)
+      case klass.name
+      when "ShowcaseShot" then :showcase
+      when "BuildPhoto" then :build
+      else []
+      end
     end
 end

@@ -29,6 +29,10 @@ Rails.application.routes.draw do
       # somebody else's. The one fact on a page its owner does not write.
       resource :ratings, only: :show, controller: "ratings"
       put "ratings/:username", to: "ratings#update", as: :rate_page
+      # The same act, aimed at one posted thing rather than at the page: the rice, a shot, a
+      # build, a demo, a link. An agent reacting to a page but not to what is on it can only
+      # say half of what a visitor can.
+      put "ratings/:username/:kind/:id", to: "ratings#update_target", as: :rate_post
     end
   end
 
@@ -44,8 +48,12 @@ Rails.application.routes.draw do
   patch "showcase/shots/:id/move", to: "showcases#move_shot", as: :move_showcase_shot
   resource :account, only: [ :update, :destroy ], controller: "accounts"
 
-  # Liking a page. One opinion per person per page — see RatingsController.
+  # Liking a page, or anything posted on one.
+  #
+  # No kind means the page itself; a kind and an id mean the rice, a shot, a build, a demo, a
+  # link. One route, because it is one act.
   post "profiles/:username/rate", to: "ratings#create", as: :rate_profile
+  post "profiles/:username/rate/:kind/:id", to: "ratings#create", as: :rate_post
 
   # The local preview: draws a folder from disk with the site's own renderer, so a person
   # editing files sees the page the site will make of them. Local only — nothing is stored.
@@ -77,17 +85,17 @@ Rails.application.routes.draw do
   patch "profile/picture", to: "profiles#update_picture", as: :profile_picture
   delete "profile/picture", to: "profiles#destroy_picture"
 
-  # Comments are left on a page, so they are nested under the username a visitor
-  # is looking at; removal is by comment id, which the comment knows its page from.
+  # Comments are left on a page, or on anything posted on one. Removal is by comment id,
+  # which the comment knows its own wall from.
   post "profiles/:username/comments", to: "comments#create", as: :profile_comments
+  post "profiles/:username/comments/:kind/:id", to: "comments#create", as: :profile_post_comments
   delete "comments/:id", to: "comments#destroy", as: :comment
 
   # Taking somebody's layout onto your own page, from their page.
   post "profiles/:username/copy_layout", to: "profiles#copy_layout", as: :copy_layout_profile
 
-  # Favorites and blocks — the MySpace "Contacting" section.
-  post "profiles/:username/favorite", to: "profiles#favorite", as: :favorite_profile
-  delete "profiles/:username/favorite", to: "profiles#unfavorite"
+  # Blocking. The off switch, and the only thing that stops an account writing on a page:
+  # it is not a reaction and has no equivalent among them.
   post "profiles/:username/block", to: "profiles#block", as: :block_profile
   delete "profiles/:username/block", to: "profiles#unblock"
 
