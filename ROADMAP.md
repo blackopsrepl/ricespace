@@ -78,9 +78,13 @@ domain, not code.
 ### 6. An installable CLI
 
 `cli/` is a working Rust client — `ricespace login`, `page show`, `page links`,
-`page rice`, `folder clone|push|preview|watch`. `cli/install.sh` installs it into a
-prefix with generated shell completions. What is missing is distribution: a tagged
-release, a built binary per platform, and a README line that says how to get it.
+`page rice`, `rate show|set`, `folder clone|push|preview|watch`.
+
+**Done.** `cli/install.sh` installs two ways: from a release it downloads the binary for
+this platform and verifies it against the published checksum, and from a checkout it builds
+with cargo. `.github/workflows/release.yml` runs the gate, builds static binaries for
+Linux and macOS on both architectures, and attaches them to the tag's release — so pushing
+a `v*` tag is the whole release. What remains is the first tag.
 
 ## Later
 

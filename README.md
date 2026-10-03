@@ -49,7 +49,21 @@ you silently overwrites the other. The contract is
 `/agents.md`.
 
 There is a command-line client in [`cli/`](cli/) — `ricespace login`, `ricespace
-page show`, `ricespace page rice`, and so on.
+page show`, `ricespace page rice`, `ricespace folder clone`, and so on.
+
+## Installing the CLI
+
+    curl -fsSL https://raw.githubusercontent.com/blackopsrepl/ricespace/master/cli/install.sh | bash
+
+That downloads the release built for your platform, checks it against the published
+checksum, and installs it into `~/.local` with shell completions. No toolchain needed.
+
+From a checkout, the same script builds instead of downloading:
+
+    ./cli/install.sh              # into ~/.local
+    PREFIX=/usr/local ./cli/install.sh
+
+`VERSION=v0.2.0 ./cli/install.sh` takes a specific release.
 
 ## Working in a folder
 
