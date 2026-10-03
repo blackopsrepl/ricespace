@@ -105,7 +105,7 @@
 <section id="popular" class="mb-16">
   <h2 class="rule">
     <span class="label">Top pages</span>
-    <span class="label text-zinc-600">what people reacted to</span>
+    <span class="label text-zinc-600">most loved by visitors</span>
   </h2>
 
   <% if @popular.any? %>
@@ -181,11 +181,15 @@
             </p>
           <% end %>
 
-          <% if signed_in? && profile.document.include?("<style") %>
+          <% if profile.document.include?("<style") %>
             <div class="flex flex-wrap items-center gap-2 border-t border-zinc-800 px-4 py-3">
-              <%= button_to "Take its layout", copy_layout_profile_path(profile.user), method: :post, class: "label hover:text-zinc-200",
-                    form: { data: { turbo_confirm: "Take @#{profile.user.username}’s layout? It replaces your own rules — the copy is the point." } } %>
-              <span class="label">replaces your rules</span>
+              <% if signed_in? %>
+                <%= button_to "Take its layout", copy_layout_profile_path(profile.user), method: :post, class: "label hover:text-zinc-200",
+                      form: { data: { turbo_confirm: "Take @#{profile.user.username}’s layout? It replaces your own rules — the copy is the point." } } %>
+                <span class="label">replaces your rules</span>
+              <% else %>
+                <span class="label">take its layout</span>
+              <% end %>
             </div>
           <% end %>
         </li>

@@ -96,7 +96,8 @@ class DirectoryTest < ActionDispatch::IntegrationTest
 
     get profile_url(@other)
 
-    assert_match "Sign in to take this layout", response.body
+    assert_match "take this layout", response.body
+    assert_match "Sign in to join in", response.body
     refute_match "Take this layout", response.body
   end
 

@@ -54,6 +54,9 @@ module DemoSite
         if spec[:interests]
           user.profile.update!(interests: spec[:interests]) unless user.profile.interests == spec[:interests]
         end
+        if spec[:song]
+          user.profile.update!(spec[:song]) unless user.profile.song? && user.profile.song_url == spec[:song][:song_url]
+        end
         Array(spec[:blurbs] || (spec[:blurb] ? [ spec[:blurb] ] : [])).each do |blurb|
           record = user.blurbs.find_or_initialize_by(title: blurb.fetch(:title))
           record.assign_attributes(blurb)

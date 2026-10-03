@@ -97,7 +97,8 @@ module DemoSite
     "ron" => {
       name: "Ron", page: "ron", headline: "founder, and your first friend",
       mood: "keeping the lights on", greeting: "hey, i'm ron. make yourself a page.",
-      blurb: { title: "Welcome to RiceSpace", body: "Your page belongs to you. Write it in HTML and CSS, keep it in a folder, and show what you build." }
+      blurb: { title: "Welcome to RiceSpace", body: "Your page belongs to you. Write it in HTML and CSS, keep it in a folder, and show what you build." },
+      song: { song_url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", song_title: "the ricespace theme" }
     },
     "vittorio" => {
       name: "Vittorio", page: "vittorio", headline: "SolverForge · blackopsrepl",
@@ -129,6 +130,8 @@ module DemoSite
       mood: "on air", greeting: "Synths, solder, and far too many cables.",
       rice: { title: "midnight radio", summary: "A fictional synth desk for the Blacklight layout.", theme: "blacklight" },
       blurb: { title: "On the bench", body: "I repair cassette decks and build little noise boxes. The good ones hiss." },
+      interests: { "general" => "synths, solder, radio", "music" => "kraftwerk, giorgio moroder", "movies" => "the matrix, tron", "television" => "black mirror", "books" => "neuromancer, snow crash", "heroes" => "the guy who made the 303" },
+      links: [ { platform: "youtube", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "synth repair video" } ],
       build: { title: "the noise box", kind: "peripherals", summary: "a fictional DIY synth", specs: "three oscillators and a filter" }
     },
     {
@@ -136,6 +139,8 @@ module DemoSite
       mood: "editing", greeting: "Today's edition: another laptop saved from the bin.",
       rice: { title: "the daily desk", summary: "A fictional repair journal in the Newspaper layout.", theme: "newspaper" },
       blurb: { title: "Field notes", body: "Monday: replaced a hinge. Tuesday: found the missing screw. Wednesday: lost it again." },
+      interests: { "general" => "repair, recycling, right to repair", "music" => "punk, riot grrrl", "movies" => "the social network, her", "television" => "great british bake off", "books" => "the design of everyday things, repair manuals", "heroes" => "iFixit" },
+      links: [ { platform: "youtube", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "laptop repair timelapse" } ],
       build: { title: "the donor laptop", kind: "laptop", summary: "fictional spare-parts rescue", specs: "two broken laptops, one working machine" }
     },
     {
@@ -155,11 +160,15 @@ module DemoSite
               terminal: "ghostty", font: "iosevka", theme: "tokyo night" },
       blurb: { title: "About", body: "i write at night and regret it in the morning." },
       interests: { "general" => "night city, blue hour, tokyo", "music" => "boards of canada, tycho", "movies" => "blade runner, ghost in the shell", "television" => "serial experiments lain", "books" => "william gibson, bruce sterling", "heroes" => "the guy who wrote sway" },
+      links: [
+        { platform: "youtube", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "my desk tour" },
+        { platform: "vimeo", url: "https://vimeo.com/12345678", title: "late night synth session" },
+        { platform: "twitch", url: "https://www.twitch.tv/videos/123456789", title: "building a mechanical keyboard" }
+      ],
       demos: [ { title: "second reality", group_name: "Future Crew", party: "Assembly 93", release_year: 1993, ranking: 1,
                  url: "https://www.youtube.com/watch?v=rFjFRA0VS58", watch_note: "the one that started all of this" } ],
       build: { title: "the night machine", kind: "desktop", summary: "quiet, blue, on all night",
-               specs: "ryzen 7, 32gb", cooling: "one big noctua" },
-      tags: %w[quiet]
+               specs: "ryzen 7, 32gb", cooling: "one big noctua" }
     },
     {
       username: "alice", name: "Alice", layout: "catppuccin",
@@ -173,8 +182,7 @@ module DemoSite
       interests: { "general" => "pastel everything, mauve accents", "music" => "lofi hip hop, nujabes", "movies" => "amélie, the grand budapest hotel", "television" => "great british bake off", "books" => "penguin classics, design of everyday things", "heroes" => "dieter rams" },
       links: [ { platform: "youtube", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "my desk tour" } ],
       build: { title: "the pastel tower", kind: "desktop", summary: "small, quiet, pink",
-               specs: "m2 ultra, 64gb", cooling: "it is a mac" },
-      tags: %w[cosy]
+               specs: "m2 ultra, 64gb", cooling: "it is a mac" }
     },
     {
       username: "bob", name: "Bob", layout: "gruvbox",
@@ -188,8 +196,7 @@ module DemoSite
       demos: [ { title: "fr-025", group_name: "Farbrausch", party: "Breakpoint 2003", release_year: 2003, ranking: 1,
                  category: "64k intro", url: "https://www.youtube.com/watch?v=1hQmK4lV3sU" } ],
       build: { title: "the retro bench", kind: "desktop", summary: "a 2014 cpu in a 2026 case",
-               specs: "i7-4790k, 16gb", cooling: "a fan from a skip" },
-      tags: %w[warm]
+               specs: "i7-4790k, 16gb", cooling: "a fan from a skip" }
     },
     {
       username: "carol", name: "Carol", layout: "everforest",
@@ -201,8 +208,7 @@ module DemoSite
               terminal: "foot", font: "iosevka", theme: "everforest" },
       blurb: { title: "About", body: "linux on a laptop that was designed to run linux. imagine that." },
       build: { title: "the framework", kind: "laptop", summary: "repairable, green, mine",
-               specs: "ryzen 7, 32gb", cooling: "whatever framework put in" },
-      tags: %w[calm]
+               specs: "ryzen 7, 32gb", cooling: "whatever framework put in" }
     },
     {
       username: "dave", name: "Dave", layout: "hackerman",
@@ -216,8 +222,7 @@ module DemoSite
       demos: [ { title: "the matrix", group_name: "somebody", party: "a cinema", release_year: 1999, ranking: 3,
                  url: "https://www.youtube.com/watch?v=vKQi3bBA1y8" } ],
       build: { title: "the rig", kind: "desktop", summary: "green rgb, obviously",
-               specs: "i9, 128gb", cooling: "water, because of course" },
-      tags: %w[loud]
+               specs: "i9, 128gb", cooling: "water, because of course" }
     },
     {
       username: "erin", name: "Erin", layout: "lumon",
@@ -230,8 +235,7 @@ module DemoSite
       blurb: { title: "About", body: "i do not remember writing this." },
       links: [ { platform: "youtube", url: "https://www.youtube.com/watch?v=x8H0j9FjO3c", title: "orientation" } ],
       build: { title: "the work machine", kind: "desktop", summary: "issued, not chosen",
-               specs: "unknown", cooling: "please do not open it" },
-      tags: %w[quiet]
+               specs: "unknown", cooling: "please do not open it" }
     },
     {
       username: "frank", name: "Frank", layout: "miasma",
@@ -243,8 +247,7 @@ module DemoSite
               terminal: "st", font: "terminus", theme: "miasma" },
       blurb: { title: "About", body: "dwm. no bar. no icons. no problem." },
       build: { title: "the bog machine", kind: "laptop", summary: "it boots, that's the spec",
-               specs: "i5, 8gb", cooling: "the fan is a suggestion" },
-      tags: %w[quiet]
+               specs: "i5, 8gb", cooling: "the fan is a suggestion" }
     },
     {
       username: "grace", name: "Grace", layout: "ethereal",
@@ -258,8 +261,7 @@ module DemoSite
       demos: [ { title: "state of the art", group_name: "Spaceballs", party: "The Gathering 2004", release_year: 2004, ranking: 1,
                  url: "https://www.youtube.com/watch?v=FhL5ZtJUvZc" } ],
       build: { title: "the loop", kind: "desktop", summary: "hardline, because it looks right",
-               specs: "7950x, 64gb", cooling: "custom loop, hardline" },
-      tags: %w[loud]
+               specs: "7950x, 64gb", cooling: "custom loop, hardline" }
     },
     {
       # No layout: every rule below is written on the page.
@@ -276,8 +278,7 @@ module DemoSite
       ],
       links: [ { platform: "youtube", url: "https://www.youtube.com/watch?v=8ZcmTl_1ER8", title: "my favourite song" } ],
       build: { title: "the bedroom pc", kind: "desktop", summary: "it has a turbo button",
-               specs: "pentium iii, 256mb", cooling: "two fans and a dream" },
-      tags: %w[very-loud]
+               specs: "pentium iii, 256mb", cooling: "two fans and a dream" }
     },
     {
       # No layout either, and a different hand entirely.
@@ -290,8 +291,7 @@ module DemoSite
               terminal: "alacritty", font: "berkeley mono", theme: "greyscale" },
       blurb: { title: "Note", body: "a page that needs a stylesheet to be readable is a page that has failed." },
       build: { title: "the NUC", kind: "desktop", summary: "velcroed to the underside of the desk",
-               specs: "i7, 32gb", cooling: "the desk" },
-      tags: %w[quiet]
+               specs: "i7, 32gb", cooling: "the desk" }
     }
   ].freeze
 

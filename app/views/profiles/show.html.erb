@@ -8,10 +8,10 @@
   THE PAGE. MySpace-inspired layout, modern execution:
 
   1. Contact table (hero) — picture, name, greeting, mood, member since
-  2. Top 8 friends — the social centerpiece
-  3. Comment wall — where people leave their mark
-  4. About me — the owner's blurbs
-  5. The rice showcase — the desktop
+  2. The rice showcase — the desktop, the main event
+  3. About me — the owner's blurbs
+  4. Top 8 friends — the social centerpiece
+  5. Comment wall — where people leave their mark
   6. The profile markup — owner's HTML
   7. Watch — stream links
   8. Demos — demoscene releases
@@ -33,8 +33,8 @@
         <%= image_tag @picture.image.variant(:display), alt: @user.display_name,
               class: "h-40 w-40 border-2 border-zinc-600 object-cover" %>
       <% else %>
-        <div class="profile-pic-default flex h-40 w-40 items-center justify-center border-2 border-dashed border-zinc-700">
-          <span class="label">no pic</span>
+        <div class="profile-pic-default flex h-40 w-40 items-center justify-center border-2 border-zinc-700 bg-zinc-800">
+          <span class="text-3xl font-bold text-zinc-400"><%= @user.display_name.first.upcase %></span>
         </div>
       <% end %>
     </div>
@@ -71,9 +71,9 @@
             <% if @user.last_seen_at && @user.last_seen_at > 5.minutes.ago %>
               <span class="text-emerald-400">● online now</span>
             <% elsif @user.last_seen_at %>
-              <span class="text-zinc-400">last seen <%= time_ago_in_words(@user.last_seen_at) %> ago</span>
+              <span class="text-zinc-400">last active <%= time_ago_in_words(@user.last_seen_at) %> ago</span>
             <% else %>
-              <span class="text-zinc-500">never seen</span>
+              <span class="text-zinc-500">not online</span>
             <% end %>
           </dd>
         </div>
@@ -85,7 +85,8 @@
           <%= link_to "Edit showcase", edit_showcase_path, class: "btn" %>
         <% end %>
         <div class="rating flex items-center gap-2">
-          <span class="rating-value fact-value text-xl text-amber-300" title="rating"><%= @score %></span>
+          <span class="label">rating</span>
+          <span class="rating-value fact-value text-xl text-amber-300"><%= @score %></span>
           <% if signed_in? && !@can_edit %>
             <%= button_to (@my_rating == Rating::LIKE ? "★ liked" : "☆ like"),
                   rate_profile_path(@user, score: Rating::LIKE),
@@ -93,8 +94,6 @@
             <%= button_to (@my_rating == Rating::DISLIKE ? "▼ disliked" : "▼ dislike"),
                   rate_profile_path(@user, score: Rating::DISLIKE),
                   class: "btn" %>
-          <% elsif !signed_in? %>
-            <%= link_to "Sign in to rate this page", new_session_path, class: "btn" %>
           <% end %>
         </div>
         <% if signed_in? && !@can_edit %>
@@ -111,12 +110,21 @@
         <% end %>
         <% if @rendered.css.present? %>
           <% if signed_in? && current_user != @user %>
-            <%= button_to "Take this layout", copy_layout_profile_path(@user), method: :post, class: "btn",
-                  form: { data: { turbo_confirm: "Take @#{@user.username}’s layout? It replaces your own rules — the copy is the point." } } %>
+            <%= button_to "Take this layout", copy_layout_profile_path(@user), method: :post, class: "btn btn-primary",
+                  form: { data: { turbo_confirm: "Take @#{@user.username}'s layout? It replaces your own rules — the copy is the point." } } %>
             <span class="label">replaces your rules</span>
           <% elsif !signed_in? %>
             <%= link_to "Sign in to take this layout", new_session_path, class: "btn" %>
           <% end %>
+        <% end %>
+        <% if signed_in? && !@can_edit && !current_user.friends.include?(@user) %>
+          <%= form_with url: friendships_path, class: "flex items-center gap-2" do |form| %>
+            <%= form.hidden_field :username, value: @user.username %>
+            <%= form.submit "Add @#{@user.username} as friend", class: "btn" %>
+          <% end %>
+        <% end %>
+        <% if !signed_in? && !@can_edit %>
+          <%= link_to "Sign in to join in", new_session_path, class: "btn btn-primary" %>
         <% end %>
       </div>
     </div>
@@ -132,133 +140,16 @@
   <% end %>
 </header>
 
-<%# ── 2. TOP 8 FRIENDS ───────────────────────────────────────────────────────────
-    The social centerpiece. Ranked grid, first eight get the amber border — the
-    owner's order, which is what made the list worth ordering at all. %>
-<section id="friends" class="friendSpace mb-12">
-  <h2 class="orangetext15 rule">
-    <span class="label">friends</span>
-    <span class="label friendCount text-zinc-400"><%= @friend_count %></span>
-  </h2>
-  <% if @friends.any? %>
-    <ul class="top8 mt-5 grid grid-cols-4 gap-4 sm:grid-cols-8">
-      <% @friends.each_with_index do |friend, index| %>
-        <li class="friend<%= " top8-slot" if index < ProfilesController::TOP_EIGHT %>">
-          <%= link_to profile_path(friend), class: "group block" do %>
-            <% if friend.profile_picture&.image&.attached? %>
-              <%= image_tag friend.profile_picture.image.variant(:thumb), alt: friend.display_name,
-                    class: "block aspect-square w-full border border-zinc-700 object-cover" %>
-            <% else %>
-              <span class="flex aspect-square w-full items-center justify-center border border-dashed border-zinc-700">
-                <span class="label"><%= friend.username.truncate(8) %></span>
-              </span>
-            <% end %>
-            <span class="nametext mt-2 block truncate text-sm text-zinc-300 group-hover:text-zinc-100">
-              <%= friend.display_name.truncate(16) %>
-            </span>
-          <% end %>
-        </li>
-      <% end %>
-    </ul>
-    <% if @friend_count > @friends.size %>
-      <p class="label mt-4">and <%= @friend_count - @friends.size %> more</p>
-    <% end %>
-  <% else %>
-    <p class="mt-4 text-sm text-zinc-500">No friends listed yet.</p>
-  <% end %>
-  <% if @can_edit %>
-    <%= form_with url: friendships_path, class: "mt-5 flex flex-wrap items-center gap-2" do |form| %>
-      <%= form.text_field :username, placeholder: "their username", required: true, class: "field w-48" %>
-      <%= form.submit "Add friend", class: "btn" %>
-    <% end %>
-  <% end %>
-</section>
-
-<%# ── 3. COMMENT WALL ────────────────────────────────────────────────────────────
-    The other half of the social centerpiece. A page's wall: you write on your own
-    page and on anybody else's. Everything below is a comment somebody left with
-    their name on it. %>
-<section id="comments" class="comments mb-12">
-  <h2 class="orangetext15 rule">
-    <span class="label">comments</span>
-    <span class="label commentCount text-zinc-400"><%= @user.comments.count %></span>
-  </h2>
-  <p class="label mt-2">
-    <%= @can_edit ? "your wall — write on it, or write on anyone else's" : "leave your mark on @#{@user.username}'s wall" %>
-  </p>
-  <% if signed_in? %>
-    <%= form_with model: @comment, url: profile_comments_path(@user.username), id: "comment-form", class: "mt-5 max-w-2xl" do |form| %>
-      <div class="flex flex-wrap items-start gap-2">
-        <%= form.text_area :body, rows: 3, required: true, placeholder: "write on @#{@user.username}'s wall as @#{current_user.username}", class: "field" %>
-        <%= form.submit "Post", class: "btn" %>
-      </div>
-    <% end %>
-  <% else %>
-    <p class="mt-5 text-sm text-zinc-500">
-      <%= link_to "Sign in", new_session_path, class: "underline hover:text-zinc-200" %> to post on this wall.
-    </p>
-  <% end %>
-  <% if @comments.any? %>
-    <ul class="mt-6 space-y-px border border-zinc-800">
-      <% @comments.each do |comment| %>
-        <li class="comment bg-zinc-950 p-4">
-          <div class="flex flex-wrap items-baseline justify-between gap-2">
-            <span class="nametext text-sm text-zinc-200"><%= comment.displayed_author %></span>
-            <span class="label"><%= time_ago_in_words(comment.created_at) %> ago</span>
-          </div>
-          <p class="comment-body mt-2 whitespace-pre-wrap text-sm text-zinc-300"><%= comment.body %></p>
-          <% if signed_in? && (current_user == @user || current_user == comment.author) %>
-            <p class="mt-2 text-right">
-              <%= button_to "Remove", comment_path(comment), method: :delete, class: "label hover:text-red-300" %>
-            </p>
-          <% end %>
-        </li>
-      <% end %>
-    </ul>
-  <% else %>
-    <p class="mt-4 text-sm text-zinc-500">Nothing on this wall yet.</p>
-  <% end %>
-</section>
-
-<%# ── 4. INTERESTS ──────────────────────────────────────────────────────────────
-    The MySpace tabular block: General, Music, Movies, Television, Books, Heroes. %>
-<% if @profile.interests.present? %>
-  <section id="interests" class="mb-12">
-    <h2 class="orangetext15 rule">
-      <span class="label">interests</span>
-    </h2>
-    <dl class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-      <% @profile.interests.each do |category, value| %>
-        <% next if value.blank? %>
-        <div class="fact">
-          <dt class="label"><%= category %></dt>
-          <dd class="fact-value" title="<%= value %>"><%= value %></dd>
-        </div>
-      <% end %>
-    </dl>
-  </section>
-<% end %>
-
-<%# ── 5. ABOUT ME ────────────────────────────────────────────────────────────────
-    The owner's own words, in titled blocks. %>
-<% if @blurbs.any? %>
-  <section id="blurbs" class="mb-12">
-    <% @blurbs.each do |blurb| %>
-      <article class="blurb mb-6 max-w-3xl" id="blurb-<%= blurb.id %>">
-        <h2 class="blurb-title orangetext15 rule label"><%= blurb.title %></h2>
-        <div class="blurb-body mt-3 text-zinc-300"><%= blurb.rendered_body %></div>
-      </article>
-    <% end %>
-  </section>
-<% end %>
-
-<%# ── 5. THE RICE SHOWCASE ──────────────────────────────────────────────────────
-    The desktop. The reason the site exists. %>
+<%# ── 2. THE RICE SHOWCASE ──────────────────────────────────────────────────────
+    The desktop. The reason the site exists. Moved to position 2 so a visitor sees
+    the main event before the supporting cast. %>
+<% if @showcase&.filled? || @can_edit %>
 <section id="showcase" class="showcase mb-14">
   <% if @showcase&.filled? %>
     <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
       <div class="flex flex-wrap items-center gap-4">
         <span class="rice-label">the rice</span>
+        <span class="label">their desktop setup</span>
         <% if @showcase.title.present? %>
           <h2 class="rice-title text-xl font-semibold tracking-tight"><%= @showcase.title %></h2>
         <% end %>
@@ -323,28 +214,162 @@
     </div>
   <% end %>
 </section>
+<% end %>
 
-<%# ── 6. THE PROFILE MARKUP ──────────────────────────────────────────────────────
+<%# ── 3. ABOUT ME ────────────────────────────────────────────────────────────────
+    The owner's own words, in titled blocks. Before comments so a visitor meets
+    the owner's voice before other people's graffiti. %>
+<% if @blurbs.any? %>
+  <section id="blurbs" class="mb-12">
+    <% @blurbs.each do |blurb| %>
+      <article class="blurb mb-6 max-w-3xl" id="blurb-<%= blurb.id %>">
+        <h2 class="blurb-title orangetext15 rule label"><%= blurb.title %></h2>
+        <div class="blurb-body mt-3 text-zinc-300"><%= blurb.rendered_body %></div>
+      </article>
+    <% end %>
+  </section>
+<% end %>
+
+<%# ── 4. TOP 8 FRIENDS ───────────────────────────────────────────────────────────
+    The social centerpiece. Ranked grid, first eight get the amber border — the
+    owner's order, which is what made the list worth ordering at all. %>
+<section id="friends" class="friendSpace mb-12">
+  <h2 class="orangetext15 rule">
+    <span class="label">Top 8</span>
+    <span class="label friendCount text-zinc-400"><%= @friend_count %> friends</span>
+  </h2>
+  <% if @friends.any? %>
+    <ul class="top8 mt-5 grid grid-cols-4 gap-4 sm:grid-cols-8">
+      <% @friends.each_with_index do |friend, index| %>
+        <li class="friend<%= " top8-slot" if index < ProfilesController::TOP_EIGHT %>">
+          <%= link_to profile_path(friend), class: "group block" do %>
+            <% if friend.profile_picture&.image&.attached? %>
+              <%= image_tag friend.profile_picture.image.variant(:thumb), alt: friend.display_name,
+                    class: "block aspect-square w-full border border-zinc-700 object-cover" %>
+            <% else %>
+              <span class="flex aspect-square w-full items-center justify-center border border-zinc-700 bg-zinc-800">
+                <span class="text-lg font-bold text-zinc-500"><%= friend.display_name.first.upcase %></span>
+              </span>
+            <% end %>
+            <span class="nametext mt-2 block truncate text-sm text-zinc-300 group-hover:text-zinc-100">
+              <%= friend.display_name.truncate(16) %>
+            </span>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+    <% if @friend_count > @friends.size %>
+      <p class="label mt-4">and <%= @friend_count - @friends.size %> more</p>
+    <% end %>
+  <% else %>
+    <p class="mt-4 text-sm text-zinc-500">No friends listed yet.</p>
+  <% end %>
+  <% if @can_edit %>
+    <%= form_with url: friendships_path, class: "mt-5 flex flex-wrap items-center gap-2" do |form| %>
+      <%= form.text_field :username, placeholder: "their username", required: true, class: "field w-48" %>
+      <%= form.submit "Add friend", class: "btn" %>
+    <% end %>
+  <% end %>
+</section>
+
+<%# ── 5. COMMENT WALL ────────────────────────────────────────────────────────────
+    The other half of the social centerpiece. A page's wall: you write on your own
+    page and on anybody else's. Everything below is a comment somebody left with
+    their name on it. %>
+<section id="comments" class="comments mb-12">
+  <h2 class="orangetext15 rule">
+    <span class="label">comments</span>
+    <span class="label commentCount text-zinc-400"><%= @user.comments.count %></span>
+  </h2>
+  <p class="label mt-2">
+    <%= @can_edit ? "your wall — write on it, or write on anyone else's" : "leave your mark on @#{@user.username}'s wall" %>
+  </p>
+  <% if signed_in? %>
+    <%= form_with model: @comment, url: profile_comments_path(@user.username), id: "comment-form", class: "mt-5 max-w-2xl" do |form| %>
+      <div class="flex flex-wrap items-start gap-2">
+        <%= form.text_area :body, rows: 3, required: true, placeholder: "write on @#{@user.username}'s wall as @#{current_user.username}", class: "field" %>
+        <%= form.submit "Post", class: "btn" %>
+      </div>
+    <% end %>
+  <% else %>
+    <p class="mt-5 text-sm text-zinc-500">
+      <%= link_to "Sign in", new_session_path, class: "underline hover:text-zinc-200" %> to post on this wall.
+    </p>
+  <% end %>
+  <% if @comments.any? %>
+    <ul class="mt-6 space-y-px border border-zinc-800">
+      <% @comments.each do |comment| %>
+        <li class="comment bg-zinc-950 p-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <% if comment.author&.profile_picture&.image&.attached? %>
+                <%= image_tag comment.author.profile_picture.image.variant(:thumb), alt: "",
+                      class: "h-6 w-6 border border-zinc-700 object-cover" %>
+              <% end %>
+              <%= link_to comment.displayed_author, profile_path(comment.author),
+                    class: "nametext text-sm text-zinc-200 hover:text-amber-300" %>
+            </div>
+            <span class="label"><%= time_ago_in_words(comment.created_at) %> ago</span>
+          </div>
+          <p class="comment-body mt-2 whitespace-pre-wrap text-sm text-zinc-300"><%= comment.body %></p>
+          <% if signed_in? && (current_user == @user || current_user == comment.author) %>
+            <p class="mt-2 text-right">
+              <%= button_to "Remove", comment_path(comment), method: :delete, class: "label hover:text-red-300" %>
+            </p>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="mt-4 text-sm text-zinc-500">Nothing on this wall yet.</p>
+  <% end %>
+</section>
+
+<%# ── 6. INTERESTS ──────────────────────────────────────────────────────────────
+    The MySpace tabular block: General, Music, Movies, Television, Books, Heroes. %>
+<% if @profile.interests.present? %>
+  <section id="interests" class="mb-12">
+    <h2 class="orangetext15 rule">
+      <span class="label">interests</span>
+    </h2>
+    <dl class="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+      <% @profile.interests.each do |category, value| %>
+        <% next if value.blank? %>
+        <div class="fact">
+          <dt class="label"><%= category %></dt>
+          <dd class="fact-value" title="<%= value %>"><%= value %></dd>
+        </div>
+      <% end %>
+    </dl>
+  </section>
+<% end %>
+
+<%# ── 7. THE PROFILE MARKUP ──────────────────────────────────────────────────────
     What the owner wrote, in the author's own stylesheet. No column around it and no
     card of ours: the page's own rules decide what it looks like, including whether
     the site's chrome is still here. %>
-<article id="profile" class="profile-page mb-12">
+<% if @profile.document.present? || @can_edit %>
+<article id="profile" class="profile-page mb-4">
   <% if @profile.document.blank? %>
-    <div class="border border-dashed border-zinc-800 p-8">
-      <p class="label">your page</p>
-      <p class="mt-4 text-zinc-400">
-        No markup yet — this is where anything you want goes, in HTML and CSS.
-        <% if @can_edit %>
+    <% if @can_edit %>
+      <div class="border border-dashed border-zinc-800 p-8">
+        <p class="label">your page</p>
+        <p class="mt-4 text-zinc-400">
+          No markup yet — this is where anything you want goes, in HTML and CSS.
           <%= link_to "Write it", studio_path, class: "underline hover:text-zinc-200" %>.
-        <% end %>
-      </p>
-    </div>
+        </p>
+      </div>
+    <% end %>
   <% else %>
     <%= @rendered.html %>
   <% end %>
 </article>
+<p id="profile-stamp" class="label mb-12">
+  markup by @<%= @user.username %>, last changed <%= time_ago_in_words(@profile.updated_at) %> ago
+</p>
+<% end %>
 
-<%# ── 7. WATCH ───────────────────────────────────────────────────────────────────
+<%# ── 8. WATCH ───────────────────────────────────────────────────────────────────
     The videos and streams. Nothing is hosted here: each is a link, embedded from
     the service that holds it. %>
 <% if @stream_links.any? %>
@@ -380,7 +405,7 @@
   </section>
 <% end %>
 
-<%# ── 8. DEMOS ───────────────────────────────────────────────────────────────────
+<%# ── 9. DEMOS ───────────────────────────────────────────────────────────────────
     The demoscene. Its own category because a demo is not a video: the group, the
     party, the year, the platform and the placing are the entry. %>
 <% if @demos.any? %>
@@ -444,7 +469,7 @@
   </section>
 <% end %>
 
-<%# ── 9. HARDWARE ───────────────────────────────────────────────────────────────
+<%# ── 10. HARDWARE ───────────────────────────────────────────────────────────────
     Physical things: builds, racks, cooling, the closet. The photos are the evidence,
     so they lead; the facts are what is in it and how it is cooled. %>
 <% if @builds.any? %>
@@ -504,7 +529,3 @@
     </ul>
   </section>
 <% end %>
-
-<p id="profile-stamp" class="label">
-  markup by @<%= @user.username %>, last changed <%= time_ago_in_words(@profile.updated_at) %> ago
-</p>

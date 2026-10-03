@@ -22,7 +22,15 @@
 
         <%# A swatch of the layout's own first colours, so the card is not a paragraph
             about a stylesheet. %>
-        <pre class="h-28 overflow-hidden border-y border-zinc-800 bg-zinc-950 p-3 text-[10px] leading-tight text-zinc-500"><%= truncate(layout.css, length: 300) %></pre>
+        <% thumbnail = PageThumbnail.new(layout.css) %>
+        <div class="h-28 border-y border-zinc-800 p-4" style="<%= background_style(thumbnail.background) %>">
+          <span class="block text-sm font-semibold" style="<%= colour_style(thumbnail.foreground, fallback: "#a1a1aa") %>">
+            <%= layout.name %>
+          </span>
+          <span class="label block pt-1" style="<%= colour_style(thumbnail.foreground, fallback: "#a1a1aa") %>">
+            by <%= layout.author %>
+          </span>
+        </div>
 
         <div class="flex flex-wrap items-center gap-2 p-4">
           <%= link_to "Preview", layout_path(layout), class: "btn" %>
@@ -30,6 +38,8 @@
             <%= button_to "Wear this layout", apply_layout_path(layout), method: :post, class: "btn btn-primary",
                   form: { data: { turbo_confirm: "Wear “#{layout.name}”? It layers under your own rules — what you changed stays yours." } } %>
             <span class="label">keeps your rules</span>
+          <% else %>
+            <span class="label">wear this layout</span>
           <% end %>
         </div>
       </li>

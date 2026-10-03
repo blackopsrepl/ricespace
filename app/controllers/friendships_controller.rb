@@ -13,11 +13,12 @@ class FriendshipsController < ApplicationController
     end
 
     friendship = current_user.friendships.find_or_initialize_by(friend: friend)
+    back = request.referer.presence || studio_path
 
     if friendship.save
-      redirect_to studio_path, notice: "#{friend.display_name} is on your friends list."
+      redirect_to back, notice: "#{friend.display_name} is on your friends list."
     else
-      redirect_to studio_path, alert: friendship.errors.full_messages.to_sentence
+      redirect_to back, alert: friendship.errors.full_messages.to_sentence
     end
   end
 

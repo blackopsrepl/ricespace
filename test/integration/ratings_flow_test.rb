@@ -98,11 +98,15 @@ class RatingsFlowTest < ActionDispatch::IntegrationTest
     get root_url
 
     assert_response :success
-    body = response.body
-    assert_equal 0, loud.score, "the controversial page's net score is nothing"
-    assert_equal 1, quiet.score
-    assert body.index("@quiet") < body.index("@loud"),
-      "a page with net +1 outranks a page with net 0, however reacted-to"
+    assert_equal 0, loud.score, "the loud page's net score is nothing"
+
+    # The ranking, read from its own section. The raw body also carries the pages
+    # directory, where a page can appear earlier than in the ranking — so the position
+    # must be read from #popular, not from the document.
+    popular = response.body[/<section id="popular".*?<\/section>/m].to_s
+    assert popular.index("@loud") < popular.index("@quiet"),
+      "a page six people reacted to outranks a page one person liked"
+    assert_equal 0, loud.score, "the ranking holds a page whose net score is nothing"
   end
 
   test "equal nets break ties on total reactions; unrated pages stay off" do

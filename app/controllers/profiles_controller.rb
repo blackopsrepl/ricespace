@@ -40,8 +40,11 @@ class ProfilesController < ApplicationController
     @can_edit = signed_in? && current_user == @user
 
     # Track views and last seen — the MySpace "viewed X times" and online status.
-    @profile.increment!(:view_count)
-    @user.touch(:last_seen_at)
+    # A visit is somebody looking at the page, so the owner's own views do not
+    # count and only the owner's own visits move their last-seen — "online now"
+    # means the owner is actually here, not that somebody looked at them.
+    @profile.increment!(:view_count) unless @can_edit
+    @user.touch(:last_seen_at) if @can_edit
 
     # What people think of this page, and what this visitor said. One grouped read for
     # the counts rather than three sums.

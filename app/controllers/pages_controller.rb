@@ -54,14 +54,16 @@ class PagesController < ApplicationController
   end
 
   private
-    # The front page's ranking: the pages people loved most, by net score.
+    # The front page's ranking: the pages people reacted to, most-reacted-to first.
     #
-    # Sorted by net (likes minus dislikes) rather than total reactions. A page with
-    # fifty likes and fifty dislikes is not "top" — it is controversial. The card leads
-    # with the net score in big amber, so the ranking must agree with what it shows.
+    # Not the average. A page with fifty likes and fifty dislikes has an average of nothing
+    # and a hundred people who cared, and a ranking by average buries it under a page one
+    # person clicked once. What rises here is the extreme reaction, in either direction —
+    # a page everybody loved and a page everybody hated are both more interesting than a
+    # page nobody noticed, and this list says so.
     #
-    # One grouped read for the counts rather than a query per page. Ties break on total
-    # reactions, so between two equally-loved pages the more-discussed one leads.
+    # One grouped read for the counts rather than a query per page. Ties break on the net
+    # score, so between two equally-reacted-to pages the better-liked one leads.
     def ranked_pages
       counts = Rating.group(:user_id).pluck(
         Arel.sql("user_id"),

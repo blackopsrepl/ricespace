@@ -168,7 +168,14 @@ class SiteTest < ActionDispatch::IntegrationTest
     refute_includes policy, "unsafe-eval"
   end
 
-  test "a profile with no page says so" do
+  test "a profile with no page hides the empty state from visitors" do
+    get profile_url(@user)
+
+    assert_no_match "No markup yet", response.body
+  end
+
+  test "a profile with no page offers the owner a CTA" do
+    sign_in
     get profile_url(@user)
 
     assert_match "No markup yet", response.body
