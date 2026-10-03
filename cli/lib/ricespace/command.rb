@@ -36,7 +36,9 @@ module RiceSpace
         page links|demos|hardware|blurbs [--set FILE|--clear]
         page friends [usernames…]  Show or set your friends list (--clear to empty)
         rate show                  What people think of your page
-        rate set <user> <opinion>  like, dislike, or none
+        rate set <user> <opinion> [kind/id]
+                                   like, dislike, or none — on their page,
+                                   or on one thing they posted
         folder clone [dir]         Write your space out as a folder of files
         folder push [dir]          Send the folder to your space
         folder preview [dir]       Draw the folder locally, with the site's renderer
@@ -424,6 +426,7 @@ module RiceSpace
     def rate_set
       username = @argv.shift
       opinion = @argv.shift.to_s.downcase
+      target = @argv.shift
 
       raise UsageError, "rate set needs a username and an opinion" if username.nil?
 
@@ -431,12 +434,21 @@ module RiceSpace
         raise UsageError, "say like, dislike or none — `none` takes your rating back"
       end
 
-      rating = client.rate(username, opinion)
+      # `rate set @wes like showcase/12` reacts to that rice rather than to the page. The
+      # thing people react to is the thing that was posted; reaching only the page would be
+      # reaching the wrong one.
+      kind, id = target&.split("/", 2)
+      if target && (kind.nil? || id.nil? || id !~ /\A\d+\z/)
+        raise UsageError, "a target looks like showcase/12 — the kind, then the id"
+      end
+
+      rating = client.rate(username, opinion, kind, id)
       return Ui.raw(rating["raw"]) if @options[:json]
 
       Ui.wordmark
       Ui.section("rating")
       Ui.key_value("you said", rating["yours"] || "nothing")
+      Ui.key_value("about", rating["target"])
       Ui.key_value("changed", rating["changed"] ? "yes" : "no, that was already your opinion")
       Ui.key_value("page", "@#{rating["username"]}")
       Ui.key_value("score", rating["score"])

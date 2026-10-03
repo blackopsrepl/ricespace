@@ -70,14 +70,26 @@ module RiceSpace
     # This account's opinion of somebody else's page: `like`, `dislike` or `none`.
     #
     # `none` withdraws the opinion, the same act as pressing the button you already pressed.
-    def rate(username, opinion)
-      raw = request(:put, "/api/v1/ratings/#{username}", { "rating" => opinion })
+    #
+    # With a `kind` and an `id`, the same opinion is aimed at one posted thing instead: the
+    # rice, a shot of it, a build, a demo, a link. That is what an agent has to be able to do
+    # — on a page like this the thing being reacted to is the thing that was posted, not the
+    # page it sits on, and a client that can only reach the page can only say half of it.
+    def rate(username, opinion, kind = nil, id = nil)
+      path = if kind.nil?
+        "/api/v1/ratings/#{username}"
+      else
+        "/api/v1/ratings/#{username}/#{kind}/#{id}"
+      end
+
+      raw = request(:put, path, { "rating" => opinion })
       (raw["rating"] || raw).merge(
         # `yours` and `changed` describe the request rather than the page, so they sit
         # beside the rating in the response. Reading them from inside the nested object
         # silently yields "no opinion" and "nothing changed" for every answer.
         "yours" => raw["yours"],
         "changed" => raw["changed"],
+        "target" => kind ? "#{kind} ##{id}" : "the page",
         "raw" => raw
       )
     end
