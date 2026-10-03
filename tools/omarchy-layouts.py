@@ -1,4 +1,18 @@
 #!/usr/bin/env python3
+# ricespace — a page per account, and the HTML and CSS to fill it.
+# Copyright (C) 2026 Vittorio
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License along
+# with this program. If not, see <https://www.gnu.org/licenses/>.
 """Generate RiceSpace layouts from the Omarchy themes they are named after.
 
 The point of generating rather than hand-writing: a layout that claims to be Tokyo
@@ -6,6 +20,10 @@ Night should use Tokyo Night's actual colours, and there are thirty-one of them 
 each theme's `colors.toml`. Hand-copying eight of those into eight files is how a
 palette drifts from the theme it is supposed to be — which is what happened the
 first time, where "the themes" were a page coloured roughly right.
+
+Omarchy itself is MIT licensed (Copyright (c) David Heinemeier Hansson), so reading its
+palettes is unencumbered; the wallpapers are referenced by URL rather than copied, and
+each layout credits the theme it came from.
 
 Run from a checkout of Omarchy:
     python3 tools/omarchy-layouts.py ~/omarchy/themes ~/ricespace/app/layouts

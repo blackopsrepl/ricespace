@@ -1,3 +1,8 @@
+# Declared in the gemspec-shaped way Bundler reads, so a tool that inspects the Gemfile
+# reports the licence rather than "unknown". The licence text is the LICENSE file at the
+# repository root.
+gemspec_license = "AGPL-3.0-or-later"
+
 source "https://rubygems.org"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"

@@ -80,6 +80,18 @@ release, a built binary per platform, and a README line that says how to get it.
 - **Export a page.** If the page is really yours, you should be able to take it out
   — the document, the stylesheet and the pictures, as files.
 
+## Licence
+
+**AGPL-3.0-or-later.** A service built on this has to publish the source of the version
+it runs, including its changes — that is section 13, and it is the whole reason for
+choosing this licence over MIT or Apache. Fork it, run it, charge for it; what you
+cannot do is keep your changes closed while other people use them.
+
+It does not forbid anybody from running a commercial service, and no open-source
+licence could: "no productization" and "open source" are not both available. What is
+enforced here is the published-source obligation, which is the enforceable version of
+not wanting this taken private.
+
 ## Not doing
 
 - **Sign in with X.** X sign-in needs an app registration from X; there is none, so

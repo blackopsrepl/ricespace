@@ -1,5 +1,20 @@
 # frozen_string_literal: true
 
+# ricespace — a page per account, and the HTML and CSS to fill it.
+# Copyright (C) 2026 Vittorio
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License along
+# with this program. If not, see <https://www.gnu.org/licenses/>.
+
 # One account's opinion of one page.
 #
 # A rating is a single like or dislike, not a count, and there is one per pair: a person

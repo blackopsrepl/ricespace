@@ -101,6 +101,20 @@ Reading is open. Writing needs an account: your page, your rice, your comments,
 your friends list. Comments are signed in only, so every comment has somebody behind
 it.
 
+## Licence
+
+**AGPL-3.0-or-later.** See [`LICENSE`](LICENSE).
+
+The point of that choice: if you run this as a service, section 13 applies to you —
+the people using your instance are entitled to the source of the version you are
+running, including your changes. Take it, run it, modify it, charge for it; what you
+cannot do is take it, change it, and keep the changes to yourself while other people
+use them. That is the clause that stops a closed product being built on this work.
+
+It is a free-software licence, not an anti-commercial one. It does not forbid anybody
+from selling a RiceSpace service. Nobody can be prevented from doing that by an
+open-source licence, and a licence that did forbid it would not be open source.
+
 ## Running it
 
 Ruby 3.4.3 and SQLite. No Node.
