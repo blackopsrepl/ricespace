@@ -78,6 +78,14 @@ pub struct Fact {
     pub value: String,
 }
 
+/// Everything on a page that is not its markup. Kept as the raw value: these lists are
+/// pass-through, and re-modelling them in Rust would mean a change on the server needs a
+/// change here for no gain.
+#[derive(Debug)]
+pub struct Lists {
+    pub raw: Value,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Shot {
     #[serde(default)]
@@ -161,6 +169,21 @@ impl Space {
         Ok(showcase)
     }
 
+    /// Everything on the page that is not its markup.
+    pub fn lists(&self) -> Result<Lists, Failure> {
+        let raw = self.send("GET", "/api/v1/page", None)?;
+
+        Ok(Lists { raw })
+    }
+
+    /// Replace the named lists, leaving the rest of the page alone.
+    pub fn set_lists(&self, changes: &serde_json::Map<String, Value>) -> Result<Lists, Failure> {
+        let body = serde_json::json!({ "page": Value::Object(changes.clone()) });
+        let raw = self.send("PUT", "/api/v1/page", Some(body))?;
+
+        Ok(Lists { raw })
+    }
+
     /// The agent contract, as the server serves it to agents.
     pub fn contract(&self) -> Result<String, Failure> {
         self.send_text("GET", "/agents.md")
@@ -206,6 +229,10 @@ impl Space {
             ("GET", _) => agent.get(&url).header("Authorization", &authorize(&url)).call(),
             ("PATCH", payload) => agent
                 .patch(&url)
+                .header("Authorization", &authorize(&url))
+                .send_json(payload.unwrap_or(Value::Null)),
+            ("PUT", payload) => agent
+                .put(&url)
                 .header("Authorization", &authorize(&url))
                 .send_json(payload.unwrap_or(Value::Null)),
             ("POST", payload) => agent

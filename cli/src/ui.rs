@@ -87,6 +87,64 @@ pub fn raw(value: &serde_json::Value) -> Result<(), Failure> {
     Ok(())
 }
 
+/// A list of entries, as a terminal reads it: one line each, with the entry's most
+/// identifying field first. Kept deliberately generic — these are pass-through lists, and
+/// each kind names its own fields.
+pub fn list(kind: &str, value: &serde_json::Value) {
+    let items = match value.as_array() {
+        Some(items) if !items.is_empty() => items,
+        _ => {
+            println!("{}", dim(&kind.to_uppercase()));
+            println!("  (none)");
+            println!();
+            return;
+        }
+    };
+
+    println!("{}", dim(&kind.to_uppercase()));
+
+    for item in items {
+        match item {
+            serde_json::Value::String(name) => println!("  {name}"),
+            serde_json::Value::Object(fields) => {
+                // The first field that is a name is the one a person scans for; the rest
+                // follow as key: value, so a line still carries everything.
+                let named: Option<&str> = [ "title", "username", "name" ]
+                    .iter()
+                    .find(|key| fields.contains_key(**key))
+                    .copied();
+
+                let rest: Vec<String> = fields
+                    .iter()
+                    .filter(|(key, _)| Some(key.as_str()) != named)
+                    .filter(|(key, value)| !matches!(value, serde_json::Value::Null) && !key.is_empty())
+                    .map(|(key, value)| format!("{key}: {}", flatten(value)))
+                    .collect();
+
+                match named.and_then(|key| fields.get(key)).and_then(serde_json::Value::as_str) {
+                    Some(name) => println!("  {}  {}", bright(name), dim(&rest.join("  "))),
+                    None => println!("  {}", dim(&rest.join("  "))),
+                }
+            }
+            other => println!("  {}", flatten(other)),
+        }
+    }
+
+    println!();
+}
+
+fn flatten(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(text) => {
+            if text.is_empty() { "-".into() } else { text.clone() }
+        }
+        serde_json::Value::Bool(flag) => if *flag { "yes".into() } else { "no".into() },
+        serde_json::Value::Null => "-".into(),
+        serde_json::Value::Array(items) => format!("{} item(s)", items.len()),
+        other => other.to_string(),
+    }
+}
+
 /// The page: the rice first, because it is the main event there as much as here, then the
 /// facts of the markup.
 pub fn page(page: &Page, rice: Option<&Showcase>) {

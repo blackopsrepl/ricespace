@@ -112,6 +112,43 @@ enum PageCommand {
         #[arg(long)]
         theme: Option<String>,
     },
+
+    /// The videos and streams on your page.
+    Links(ListArgs),
+
+    /// The demoscene demos on your page.
+    Demos(ListArgs),
+
+    /// The hardware on your page.
+    Hardware(ListArgs),
+
+    /// The blurbs — titled blocks of text — on your page.
+    Blurbs(ListArgs),
+
+    /// Your friends list.
+    Friends {
+        /// Usernames to set the list to. None means show it instead.
+        usernames: Vec<String>,
+
+        /// Empty the list.
+        #[arg(long, conflicts_with = "usernames")]
+        clear: bool,
+    },
+}
+
+/// One of the page's lists: show it, set it from a file, or empty it.
+#[derive(clap::Args)]
+struct ListArgs {
+    /// A JSON file holding the list to set. `-` reads standard input.
+    ///
+    /// Either a bare array, or an object with the list under its own name — whatever
+    /// `ricespace page <list> --json` printed will round-trip.
+    #[arg(long)]
+    set: Option<String>,
+
+    /// Empty the list.
+    #[arg(long, conflicts_with = "set")]
+    clear: bool,
 }
 
 fn main() {
@@ -261,7 +298,127 @@ fn run(cli: &Cli, base: &str, token: &str) -> Result<(), space::Failure> {
         }
 
         Command::Page(PageCommand::Rice { .. }) => rice(cli, base, token),
+
+        Command::Page(PageCommand::Links(args)) => list(cli, base, token, "links", args),
+        Command::Page(PageCommand::Demos(args)) => list(cli, base, token, "demos", args),
+        Command::Page(PageCommand::Hardware(args)) => list(cli, base, token, "builds", args),
+        Command::Page(PageCommand::Blurbs(args)) => list(cli, base, token, "blurbs", args),
+
+        Command::Page(PageCommand::Friends { usernames, clear }) => {
+            friends(cli, base, token, usernames, *clear)
+        }
     }
+}
+
+/// One of the page's lists. `kind` is the name the API uses for it, which is not always
+/// the word a person types — the command is `hardware`, the field is `builds`.
+fn list(cli: &Cli, base: &str, token: &str, kind: &str, args: &ListArgs) -> Result<(), space::Failure> {
+    let client = space::Space::new(base, token);
+    // The lists live under `page` in the response, so the pointer is what reads them.
+    let pointer = format!("/page/{kind}");
+
+    // Nothing to change: show the list.
+    if args.set.is_none() && !args.clear {
+        let lists = client.lists()?;
+        let value = lists.raw.pointer(&pointer).cloned().unwrap_or(serde_json::Value::Null);
+
+        if cli.json {
+            return ui::raw(&value);
+        }
+
+        ui::list(kind, &value);
+        return Ok(());
+    }
+
+    let value = if args.clear {
+        serde_json::Value::Array(Vec::new())
+    } else {
+        let path = args.set.as_deref().unwrap_or("-");
+        let body = read_document(path)?;
+        let parsed: serde_json::Value = serde_json::from_str(&body).map_err(|error| {
+            space::Failure::Usage(format!("{path} is not JSON: {error}"))
+        })?;
+
+        // A file may hold the bare array or the object `--json` printed; both are accepted,
+        // so `ricespace page links --json > links.json` round-trips.
+        parsed
+            .get("page")
+            .and_then(|page| page.get(kind))
+            .or_else(|| parsed.get(kind))
+            .cloned()
+            .unwrap_or(parsed)
+    };
+
+    if !value.is_array() {
+        return Err(space::Failure::Usage(format!(
+            "{kind} must be a JSON array, got {}",
+            match &value {
+                serde_json::Value::Object(_) => "an object",
+                serde_json::Value::String(_) => "a string",
+                serde_json::Value::Number(_) => "a number",
+                _ => "something else",
+            }
+        )));
+    }
+
+    let mut changes = serde_json::Map::new();
+    changes.insert(kind.to_string(), value);
+    let lists = client.set_lists(&changes)?;
+    let value = lists.raw.pointer(&pointer).cloned().unwrap_or(serde_json::Value::Null);
+
+    if cli.json {
+        return ui::raw(&value);
+    }
+
+    ui::notice("Saved.");
+    ui::list(kind, &value);
+    Ok(())
+}
+
+/// The friends list, which is the one list whose entries are a name rather than a record —
+/// so it takes them as arguments instead of a JSON file.
+fn friends(
+    cli: &Cli,
+    base: &str,
+    token: &str,
+    usernames: &[String],
+    clear: bool,
+) -> Result<(), space::Failure> {
+    let client = space::Space::new(base, token);
+
+    if usernames.is_empty() && !clear {
+        let lists = client.lists()?;
+        let value = lists.raw.pointer("/page/friends").cloned().unwrap_or(serde_json::Value::Null);
+
+        if cli.json {
+            return ui::raw(&value);
+        }
+
+        ui::list("friends", &value);
+        return Ok(());
+    }
+
+    let entries: Vec<serde_json::Value> = if clear {
+        Vec::new()
+    } else {
+        usernames
+            .iter()
+            .map(|name| serde_json::json!({ "username": name }))
+            .collect()
+    };
+
+    let mut changes = serde_json::Map::new();
+    changes.insert("friends".to_string(), serde_json::Value::Array(entries));
+    let lists = client.set_lists(&changes)?;
+    let value = lists.raw.pointer("/page/friends").cloned().unwrap_or(serde_json::Value::Null);
+
+    if cli.json {
+        return ui::raw(&value);
+    }
+
+    ui::notice("Saved.");
+    ui::list("friends", &value);
+    Ok(())
 }
 
 fn rice(cli: &Cli, base: &str, token: &str) -> Result<(), space::Failure> {
