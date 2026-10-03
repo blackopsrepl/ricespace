@@ -19,10 +19,12 @@
 </p>
 
 <%# The layout rendered exactly as it renders on a page: written into the document after
-    everything the site loads, over the same anatomy. %>
+    everything the site loads, over the same anatomy. The card it sits in is deliberately
+    plain and uncoloured — a white card under a dark theme was previewing the card, not
+    the theme. %>
 <%= author_stylesheet(@layout.css) %>
 
-<article class="layout-preview border border-zinc-800 bg-white p-6 text-zinc-900">
+<article class="layout-preview border border-zinc-800 bg-zinc-950 p-6 text-zinc-100">
   <div class="contactTable flex items-start gap-4">
     <div class="profile-pic">
       <div class="profile-pic-default flex h-24 w-24 items-center justify-center border border-dashed border-zinc-400">

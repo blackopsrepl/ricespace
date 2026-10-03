@@ -1,0 +1,119 @@
+/* name: Lumon
+   author: Omarchy (lumon)
+   description: Generated from Omarchy's lumon palette — #16242d on the page,
+   #8bc9eb for links, and the theme's own wallpaper behind it. */
+
+/* The theme's own background, fetched from the Omarchy repository. A wallpaper is
+   half of what a theme looks like; a page wearing this one is wearing the desktop. */
+body {
+  background-color: #16242d;
+  background-image: url(https://raw.githubusercontent.com/basecamp/omarchy/master/themes/lumon/backgrounds/01-united-in-severance.webp);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  color: #d6e2ee;
+  font-family: "Iosevka", "JetBrainsMono Nerd Font", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* The site's own chrome is part of what a theme restyles, so it goes. */
+#site-header, footer { display: none; }
+
+main {
+  max-width: none;
+  padding: 0;
+  /* A scrim, not a wall: the theme's wallpaper is half of what the theme looks like,
+     so the page tints it rather than covering it. The panels below are opaque, which
+     is where the text lives. */
+  background-color: color-mix(in srgb, #0b1216 45%, transparent);
+  backdrop-filter: blur(1px);
+  min-height: 100vh;
+}
+
+a, a:link, a:visited { color: #8bc9eb; text-decoration: none; }
+a:hover { color: #f2fcff; background-color: #243d56; }
+
+/* The name block: the theme's own card against its own wallpaper.
+   In the flow rather than absolutely placed, so the page below it cannot collide
+   with it however much markup the owner wrote. */
+.contactTable {
+  margin: 32px auto 0;
+  width: 820px;
+  max-width: calc(100% - 32px);
+  border: 1px solid #8bc9eb;
+  background-color: #101b21;
+  padding: 20px 24px;
+  box-shadow: 0 0 0 1px #0b1216, 0 18px 40px #0b1216;
+}
+
+.profile-pic-default { border: 1px dashed #304860; color: #4d86b0; }
+
+.nametext {
+  color: #f2fcff;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.greeting { color: #d6e2ee; }
+.mood, .label { color: #4d86b0; text-transform: uppercase; letter-spacing: 0.14em; font-size: 10px; }
+.username { color: #b4e4f6; }
+
+/* Every section heading is the theme's accent, hairlined in its own muted shade. */
+.orangetext15 {
+  color: #8bc9eb;
+  border-bottom: 1px solid #304860;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  padding-bottom: 6px;
+}
+
+/* Every part of a page is the same panel of the theme's surface: the rice, the
+   markup the owner wrote, and all the rest. The markup is included because it is
+   where a person writes, and a page whose text falls outside its own card is a
+   layout that only looks right with the markup it was tested against. */
+#showcase, #profile, #demos, #hardware, #watch, .blurb, .friendSpace, .comments {
+  margin: 18px auto;
+  width: 820px;
+  max-width: calc(100% - 32px);
+  background-color: #101b21;
+  border: 1px solid #1b2d40;
+  padding: 18px 24px;
+  overflow-wrap: break-word;
+}
+
+/* A page's own markup keeps whatever it sets, but nothing of it may escape the
+   panel by absolute positioning or run off the side. */
+#profile { position: relative; overflow: hidden; }
+
+.rice-title { color: #6fa4c9; }
+.rice-summary { color: #d6e2ee; }
+
+/* The facts the rice is made of, as the theme's own key/value pairs. */
+.fact { display: inline-block; margin: 0 18px 6px 0; }
+.fact dt { color: #4d86b0; text-transform: uppercase; font-size: 10px; letter-spacing: 0.12em; }
+.fact dd { color: #f2fcff; }
+
+.blurb-title { color: #8bc9eb; }
+.blurb-body, #profile { color: #d6e2ee; }
+#profile h1, #profile h2 { color: #f2fcff; }
+
+.demo-title, .build-title { color: #8bc9eb; }
+.demo-credit, .build-details, .demo-placing { color: #4d86b0; }
+
+.friendCount { color: #4d86b0; }
+.friend, .top8 li { color: #5e95bc; }
+
+.comment { border-top: 1px solid #1b2d40; padding-top: 10px; margin-top: 10px; }
+.comment .nametext { color: #b4e4f6; font-size: 13px; }
+.comment-body { color: #d6e2ee; }
+
+.audio.player { border-left: 3px solid #8bc9eb; padding-left: 10px; }
+.audio.player a { color: #b1d8ee; }
+
+.rice-frame, .rice-shot { border: 1px solid #304860; }
+
+/* The theme's wordmark, from the theme itself, as the page's own mark. */
+#profile-stamp { color: #4d86b0; }
