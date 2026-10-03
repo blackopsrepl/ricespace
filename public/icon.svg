@@ -1,3 +1,15 @@
-<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="256" cy="256" r="256" fill="red"/>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="RiceSpace">
+  <!-- The mark: a grain of rice on a dark screen, in the site's own amber. A rice here is a
+       desktop, so the grain is drawn as a lit CRT — the shape reads at 16px, which is the only
+       size that matters, and it stays legible in one colour. -->
+  <rect width="512" height="512" rx="96" fill="#09090b"/>
+  <rect x="40" y="40" width="432" height="432" rx="72" fill="none" stroke="#fbbf24" stroke-width="18"/>
+  <!-- the screen's glow -->
+  <ellipse cx="256" cy="248" rx="150" ry="112" fill="#fbbf24" opacity="0.14"/>
+  <!-- the grain: pointed at both ends and tilted, which is what makes it a rice and not a pill -->
+  <path d="M256 120c52 54 78 96 78 136 0 43-35 78-78 78s-78-35-78-78c0-40 26-82 78-136z"
+        fill="#fbbf24"/>
+  <path d="M256 176v158" stroke="#09090b" stroke-width="14" stroke-linecap="round"/>
+  <!-- the scanline: the CRT half of the joke -->
+  <rect x="150" y="300" width="212" height="12" rx="6" fill="#09090b" opacity="0.65"/>
 </svg>

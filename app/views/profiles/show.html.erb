@@ -1,4 +1,9 @@
 <% content_for :title, "#{@user.display_name} — RiceSpace" %>
+<% content_for :og_type, "profile" %>
+<%# The description is what the owner said about themselves, falling back to the facts on the
+    page. It is read from stored fields rather than the markup, so what appears in a link
+    preview is never anything a page's stylesheet can change. %>
+<% content_for :description, [ @user.headline, @user.greeting, "A RiceSpace page by @#{@user.username}." ].compact_blank.first %>
 
 <%# The author's stylesheet, written after everything the site itself loads, so a
     profile can restyle the whole page — the site's chrome included. This is the

@@ -4,6 +4,25 @@
     <title><%= content_for(:title) || "RiceSpace" %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <meta name="application-name" content="RiceSpace">
+
+    <%# What a link to this page looks like when it is pasted somewhere. Without it a shared
+        page is a bare URL, and a page is a thing people share — the whole product is somebody
+        showing their desktop to somebody else. Each page sets its own description; the site's
+        own is the fallback. The image is the mascot, since a page's look is the owner's and
+        cannot be known before it is fetched. %>
+    <% description = content_for(:description) || "A page per account, and the HTML and CSS to fill it. Your desktop, on a page you wrote yourself." %>
+    <% page_title = content_for(:title) || "RiceSpace" %>
+    <meta name="description" content="<%= description %>">
+    <meta property="og:type" content="<%= content_for(:og_type) || "website" %>">
+    <meta property="og:site_name" content="RiceSpace">
+    <meta property="og:title" content="<%= page_title %>">
+    <meta property="og:description" content="<%= description %>">
+    <meta property="og:image" content="<%= "#{request.base_url}/icon.png" %>">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="<%= page_title %>">
+    <meta name="twitter:description" content="<%= description %>">
+    <meta name="twitter:image" content="<%= "#{request.base_url}/icon.png" %>">
+
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
 
