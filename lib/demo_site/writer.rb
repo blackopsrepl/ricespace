@@ -26,9 +26,12 @@ module DemoSite
         friendships
         comments
         ratings
+        post_reactions
       end
       puts "demo: #{User.count} accounts, #{Profile.where.not(document: [ nil, "" ]).count} written pages, " \
-        "#{Showcase.count} rices, #{Rating.count} ratings, #{Comment.count} wall posts" if @verbose
+        "#{Showcase.count} rices, #{Rating.count} reactions " \
+        "(#{Rating.where(rateable_type: "User").count} on pages, " \
+        "#{Rating.where.not(rateable_type: "User").count} on posts), #{Comment.count} wall posts" if @verbose
     end
 
     private
@@ -90,14 +93,35 @@ module DemoSite
         LayoutApplication.new(profile, Layout.find(spec.fetch(:layout)), keep_own_rules: false).document
       end
 
+      # The rice's picture, for a showcase that has none.
+      #
+      # Drawn, not looked up: the desktop in the picture is built from the same facts the page
+      # lists beside it — this window manager, this bar, this terminal, this font, this theme —
+      # so the picture cannot contradict the page, and a new demo account gets a rice without
+      # anybody drawing one by hand. See `DemoSite::RiceArt`.
       def screenshot(showcase)
         return if showcase.shots.any?
 
-        source = Rails.root.join("docs", "assets", "screens", "#{showcase.user.username}-rice.png")
-        return unless source.exist?
-
         shot = showcase.shots.create!(caption: "#{showcase.user.display_name}'s rice")
-        shot.image.attach(io: source.open, filename: "#{showcase.user.username}-rice.png", content_type: "image/png")
+        shot.image.attach(
+          io: StringIO.new(art_for(showcase)),
+          filename: "#{showcase.user.username}-rice.png",
+          content_type: "image/png"
+        )
+      end
+
+      # The rice says its theme as words ("tokyo night"); the art knows the colours by the
+      # layout's name ("tokyo-night"), so the two are reconciled rather than asked for twice.
+      def art_for(showcase)
+        facts = showcase.facts.to_h.symbolize_keys
+        RiceArt.draw(
+          theme: showcase.theme.to_s.tr(" ", "-").downcase,
+          name: showcase.user.display_name,
+          facts: {
+            wm: facts[:window_manager], bar: facts[:bar], term: facts[:terminal],
+            font: facts[:font], theme: showcase.theme, host: showcase.user.username
+          }
+        )
       end
 
       def friendships
@@ -117,9 +141,37 @@ module DemoSite
 
       def ratings
         Spaces::RATINGS.each do |username, author_username, score|
-          User.find_by!(username: username).ratings.find_or_create_by!(
+          page = User.find_by!(username: username)
+          page.reactions.find_or_create_by!(
             author: User.find_by!(username: author_username)
           ) { |rating| rating.score = score }
+        end
+      end
+
+      # Reactions on the things people posted rather than on their pages — the rice, a build,
+      # a demo. `first_of` picks the owner's first thing of that kind, so the fixture names a
+      # kind and not an id that changes every time the database is rebuilt.
+      def post_reactions
+        Spaces::POST_REACTIONS.each do |username, kind, author_username, score|
+          thing = first_of(User.find_by!(username: username), kind)
+          next if thing.nil?
+
+          thing.reactions.find_or_create_by!(
+            author: User.find_by!(username: author_username)
+          ) { |rating| rating.score = score }
+        end
+      end
+
+      # The owner's first posted thing of a kind, by the same names the routes use.
+      def first_of(owner, kind)
+        case kind
+        when "showcase" then owner.showcase
+        when "shot" then owner.showcase&.shots&.first
+        when "build" then owner.builds.first
+        when "photo" then owner.builds.flat_map(&:photos).first
+        when "demo" then owner.demos.first
+        when "link" then owner.stream_links.first
+        when "blurb" then owner.blurbs.first
         end
       end
   end

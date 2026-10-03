@@ -405,5 +405,26 @@ module DemoSite
         %w[alice bob 1], %w[bob carol 1], %w[heidi frank 1], %w[erin dave 1],
         %w[mika cordelia 1], %w[carol dave 1], %w[frank mika 1]
       ].freeze
+
+      # Reactions on things people posted, rather than on their pages.
+      #
+      # On a page like this the thing a person reacts to is the thing that was posted — the
+      # rice, a build, a demo — so a demo site that only has page reactions is showing half
+      # the feature and making the score look like it comes from one place. `[owner, kind,
+      # author, score]`; the kind names the owner's first thing of that type, and everything
+      # named here is something every demo account actually has.
+      POST_REACTIONS = [
+        # the rice is the main event, so it carries most of the opinion
+        %w[wes showcase alice 1], %w[wes showcase carol 1], %w[wes showcase dave 1],
+        %w[grace showcase heidi 1], %w[grace showcase mika -1],
+        %w[dave showcase bob -1], %w[dave showcase grace -1],
+        %w[heidi showcase bob 1], %w[mika showcase cordelia 1],
+        %w[alice showcase wes 1], %w[bob showcase heidi -1],
+        %w[vittorio showcase ron 1], %w[ron showcase cordelia 1],
+        # a build somebody posted, with the crowd it drew
+        %w[wes build alice 1], %w[grace build mika 1], %w[dave build carol -1],
+        # a demo, which is its own thing and gets its own opinion
+        %w[wes demo dave 1], %w[bob demo heidi -1]
+      ].freeze
   end
 end
