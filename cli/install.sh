@@ -80,26 +80,31 @@ install_from_release() {
   [ -n "$tag" ] || die "could not work out which release to install. Set VERSION=v0.2.0 and try again."
 
   url="https://github.com/$REPO/releases/download/$tag/ricespace-$name.tar.gz"
+  archive="ricespace-$name.tar.gz"
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' EXIT
+  # `${tmp:-}` rather than `$tmp`: this trap fires at script exit, by which time a local
+  # has gone out of scope and `set -u` would turn the cleanup into an error message at the
+  # end of an otherwise successful install.
+  trap 'rm -rf "${tmp:-}"' EXIT
 
   say "downloading $tag for $name…"
-  curl -fsSL "$url" -o "$tmp/ricespace.tar.gz" ||
+  curl -fsSL "$url" -o "$tmp/$archive" ||
     die "no $name build in $tag. Build from a checkout instead: $here/install.sh"
 
   # The checksum is published beside the archive. Checking it is the difference between
-  # installing software and installing whatever arrived.
-  if curl -fsSL "$url.sha256" -o "$tmp/sum" 2>/dev/null; then
+  # installing software and installing whatever arrived. The archive keeps the name the
+  # checksum file expects, because `sha256sum -c` resolves the filename *inside* that file
+  # rather than the one it was handed.
+  if curl -fsSL "$url.sha256" -o "$tmp/$archive.sha256" 2>/dev/null; then
     say "checking the checksum…"
-    ( cd "$tmp" && mv ricespace.tar.gz "ricespace-$name.tar.gz" &&
-        sha256sum -c sum --status 2>/dev/null ||
-        shasum -a 256 -c sum --status 2>/dev/null ) ||
+    ( cd "$tmp" && { sha256sum -c "$archive.sha256" --status 2>/dev/null ||
+                     shasum -a 256 -c "$archive.sha256" --status 2>/dev/null; } ) ||
       die "the download does not match its published checksum. Not installing it."
   else
     say "warning: no checksum published beside this archive; installing unverified"
   fi
 
-  tar xzf "$tmp/ricespace.tar.gz" -C "$tmp"
+  tar xzf "$tmp/$archive" -C "$tmp"
   [ -f "$tmp/ricespace" ] || die "the archive did not contain ricespace"
   install -m 755 "$tmp/ricespace" "$bindir/ricespace"
 }
