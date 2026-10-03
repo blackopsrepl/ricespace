@@ -1,9 +1,14 @@
 #!/usr/bin/env sh
-
-if ! gem list foreman -i --silent; then
-  echo "Installing foreman..."
-  gem install foreman
-fi
+# Run everything development needs: the Rails server and the Tailwind compiler
+# that rebuilds the stylesheet as the source changes.
+#
+# Foreman is the conventional runner for this, but it is not a gem this project
+# depends on — the Rails template installs it globally, which fails wherever the
+# system gem directory is not writable and leaves the app unable to start at all
+# (`foreman: not found`, with no server). Use foreman when it is actually
+# available; otherwise run the two processes here, stopping the compiler when the
+# server exits.
+set -e
 
 # Default to port 3000 if not specified
 export PORT="${PORT:-3000}"
@@ -13,4 +18,18 @@ export PORT="${PORT:-3000}"
 export RUBY_DEBUG_OPEN="true"
 export RUBY_DEBUG_LAZY="true"
 
-exec foreman start -f Procfile.dev "$@"
+if command -v foreman >/dev/null 2>&1; then
+  exec foreman start -f Procfile.dev "$@"
+fi
+
+if bundle exec foreman --version >/dev/null 2>&1; then
+  exec bundle exec foreman start -f Procfile.dev "$@"
+fi
+
+echo "foreman is not installed; starting the server and the Tailwind compiler directly."
+
+bin/rails tailwindcss:watch &
+compiler=$!
+trap 'kill "$compiler" 2>/dev/null || true' EXIT INT TERM
+
+exec bin/rails server "$@"

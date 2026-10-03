@@ -25,6 +25,12 @@ importmap loads JavaScript from the browser, and Tailwind is compiled by the
     bin/setup           # bundle install, prepare the database, clear logs and tmp
     bin/dev             # serve on http://localhost:3000
 
+`bin/dev` runs the server and the Tailwind compiler together; it uses `foreman` if
+you have it, and otherwise starts both processes itself, because the Rails
+template's habit of installing foreman globally fails on a machine whose system
+gem directory is not writable and leaves you with no server at all. Set `PORT` if
+3000 is taken — a failed bind is reported, not worked around.
+
 ## The test suite
 
     bin/rails test      # Minitest, including the sanitising and API contract tests
