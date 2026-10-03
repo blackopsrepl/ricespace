@@ -1,0 +1,42 @@
+<% content_for :title, "RiceSpace — pages you write yourself" %>
+
+<section class="mb-10">
+  <h1 class="text-3xl font-bold tracking-tight">Pages you write yourself.</h1>
+  <p class="mt-3 max-w-2xl text-zinc-400">
+    Every account gets a page and the HTML to fill it. Write it in the studio, or hand a coding agent
+    a token and let it write the page for you. No app store, no algorithm — just the page.
+  </p>
+  <div class="mt-5 flex flex-wrap gap-3 text-sm">
+    <%= link_to "Create a page", new_registration_path,
+          class: "rounded bg-fuchsia-500 px-4 py-2 font-medium text-zinc-950 hover:bg-fuchsia-400" %>
+    <%= link_to "What an agent can write", agents_path,
+          class: "rounded border border-zinc-700 px-4 py-2 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100" %>
+  </div>
+</section>
+
+<section>
+  <h2 class="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">Recently changed</h2>
+
+  <% if @profiles.any? %>
+    <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <% @profiles.each do |profile| %>
+        <li class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+          <div class="flex items-baseline justify-between gap-2">
+            <span class="font-semibold"><%= profile.user.display_name %></span>
+            <span class="text-xs text-zinc-500">@<%= profile.user.username %></span>
+          </div>
+          <p class="mt-3 truncate font-mono text-xs text-zinc-600">
+            <%= profile.document.to_s.strip.truncate(80).presence || "no markup yet" %>
+          </p>
+          <p class="mt-3 text-xs">
+            <%= link_to "Visit page", profile_path(profile.user), class: "text-fuchsia-400 hover:text-fuchsia-300" %>
+          </p>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="rounded-lg border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">
+      No pages have been written yet. Yours can be the first.
+    </p>
+  <% end %>
+</section>

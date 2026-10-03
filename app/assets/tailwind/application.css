@@ -1,1 +1,35 @@
 @import "tailwindcss";
+
+/* The site chrome is Tailwind. A profile's own page is not: it is author markup,
+   rendered inside .profile-markup, so it needs a baseline of its own or a
+   stripped <h1> and a <marquee> would both come out as browser defaults. Keep
+   this small — the point of the product is that the author styles the page. */
+@layer base {
+  .profile-markup {
+    line-height: 1.6;
+    word-break: break-word;
+  }
+
+  .profile-markup h1 { font-size: 1.75rem; font-weight: 700; margin: 0.5em 0; }
+  .profile-markup h2 { font-size: 1.4rem; font-weight: 700; margin: 0.5em 0; }
+  .profile-markup h3 { font-size: 1.15rem; font-weight: 600; margin: 0.5em 0; }
+  .profile-markup p { margin: 0.75em 0; }
+  .profile-markup a { text-decoration: underline; color: inherit; }
+  .profile-markup ul { list-style: disc; padding-left: 1.5em; margin: 0.75em 0; }
+  .profile-markup ol { list-style: decimal; padding-left: 1.5em; margin: 0.75em 0; }
+  .profile-markup blockquote {
+    border-left: 4px solid currentColor;
+    opacity: 0.85;
+    padding-left: 0.75em;
+    margin: 0.75em 0;
+  }
+  .profile-markup img { max-width: 100%; height: auto; }
+  .profile-markup table { border-collapse: collapse; margin: 0.75em 0; }
+  .profile-markup th,
+  .profile-markup td { border: 1px solid currentColor; padding: 0.25em 0.5em; }
+  .profile-markup pre {
+    white-space: pre-wrap;
+    font-family: ui-monospace, monospace;
+    margin: 0.75em 0;
+  }
+}

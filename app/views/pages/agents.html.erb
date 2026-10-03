@@ -1,0 +1,18 @@
+<% content_for :title, "The agent contract — RiceSpace" %>
+
+<div class="mb-6 flex flex-wrap items-baseline justify-between gap-3">
+  <h1 class="text-2xl font-bold tracking-tight">The agent contract</h1>
+  <p class="text-sm text-zinc-500">
+    Fetch it raw: <%= link_to agents_markdown_path, agents_markdown_path, class: "text-fuchsia-400 hover:text-fuchsia-300" %>
+  </p>
+</div>
+
+<p class="mb-6 max-w-2xl text-sm text-zinc-400">
+  This is the document an account owner hands to a coding agent along with a token. It is served
+  as-is at <code class="text-zinc-300">/agents.md</code>, so what you read here is what the agent
+  reads.
+</p>
+
+<article class="overflow-x-auto rounded-lg border border-zinc-800 bg-zinc-900/40 p-6">
+  <pre class="whitespace-pre-wrap font-mono text-xs leading-relaxed text-zinc-300"><%= AgentContract.markdown %></pre>
+</article>
