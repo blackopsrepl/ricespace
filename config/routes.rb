@@ -40,6 +40,9 @@ Rails.application.routes.draw do
   patch "showcase/shots/:id/move", to: "showcases#move_shot", as: :move_showcase_shot
   resource :account, only: [ :update, :destroy ], controller: "accounts"
 
+  # Liking a page. One opinion per person per page — see RatingsController.
+  post "profiles/:username/rate", to: "ratings#create", as: :rate_profile
+
   # The local preview: draws a folder from disk with the site's own renderer, so a person
   # editing files sees the page the site will make of them. Local only — nothing is stored.
   get "preview/:folder", to: "preview#show", as: :preview, constraints: { folder: /[^\/]+/ }

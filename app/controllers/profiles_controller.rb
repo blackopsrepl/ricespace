@@ -38,6 +38,13 @@ class ProfilesController < ApplicationController
     @builds = @user.builds.in_order
     @comment = Comment.new
     @can_edit = signed_in? && current_user == @user
+
+    # What people think of this page, and what this visitor said. One grouped read for
+    # the counts rather than three sums.
+    @score = @user.score
+    @likes = @user.likes
+    @dislikes = @user.dislikes
+    @my_rating = signed_in? && current_user != @user ? current_user.rating_for(@user) : nil
   end
 
   # Take the layout off somebody else's page onto your own.

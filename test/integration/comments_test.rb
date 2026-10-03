@@ -52,7 +52,7 @@ class CommentTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_no_match(/id="comment-form"/, response.body)
-    assert_match "to leave a comment", response.body
+    assert_match "to post on this wall", response.body
   end
 
   test "the page shows the box to a signed-in account" do
@@ -61,7 +61,7 @@ class CommentTest < ActionDispatch::IntegrationTest
     get profile_path(@owner)
 
     assert_match(/id="comment-form"/, response.body)
-    assert_match "leave a comment as @cordelia", response.body
+    assert_match "write on @vittorio’s wall as @cordelia", response.body
   end
 
   private

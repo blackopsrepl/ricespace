@@ -96,8 +96,6 @@ not wanting this taken private.
 
 - **Sign in with X.** X sign-in needs an app registration from X; there is none, so
   the feature has no way to exist. It is not waiting on code.
-- **A feed, a score, or a ranking.** The front page is a directory ordered by
-  change. There is no score here and adding one changes what the product is.
 - **JavaScript on a page.** A RiceSpace page cannot contain it. That is the
   deliberate boundary the sanitising rules exist to hold, not a gap.
 - **Moderation tooling.** Comments are signed in because an unaccountable author is

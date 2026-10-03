@@ -58,6 +58,33 @@ class User < ApplicationRecord
   # removes it from their lists rather than leaving a hole.
   has_many :reverse_friendships, class_name: "Friendship", foreign_key: :friend_id, dependent: :destroy
 
+  # The likes and dislikes left on this account's page, and the ones this account left
+  # elsewhere. Both cascade, so a closed account leaves no orphaned votes.
+  has_many :ratings, dependent: :destroy
+  has_many :given_ratings, class_name: "Rating", foreign_key: :author_id, dependent: :destroy
+
+  # What people think of this page: likes minus dislikes.
+  #
+  # Calculated rather than stored. A total in a column is a second copy of the truth that
+  # has to be updated on every rating, every change of mind and every closed account, and
+  # the one time it is not is the time the number is wrong. This is a SUM over an index.
+  def score
+    ratings.sum(:score)
+  end
+
+  def likes
+    ratings.where(score: Rating::LIKE).count
+  end
+
+  def dislikes
+    ratings.where(score: Rating::DISLIKE).count
+  end
+
+  # How this account rated somebody else's page, or nil for no opinion yet.
+  def rating_for(other)
+    given_ratings.find_by(user_id: other.id)&.score
+  end
+
   # The published stylesheets this account may apply to its page.
   def layouts
     Layout.all
