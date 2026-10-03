@@ -17,6 +17,12 @@ Rails.application.configure do
     policy.connect_src     :self
     policy.font_src        :self, :data
     policy.form_action     :self
+    # Video and stream links are embedded from the services that host them — this site
+    # stores no video. `frame_src` is therefore the one hole in `default_src`, and it is
+    # exactly three hosts wide: the three the embed builder can name. Nothing an author
+    # pastes reaches this list, because an embed's host is chosen by `StreamEmbed` from a
+    # literal rather than from the link.
+    policy.frame_src       :self, *EmbedHosts::ALL
     policy.frame_ancestors :none
     policy.img_src         :self, :data, :https
     policy.object_src      :none

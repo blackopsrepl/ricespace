@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_070126) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_070300) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -73,6 +73,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_070126) do
     t.index ["user_id"], name: "index_comments_on_user_id"
   end
 
+  create_table "demos", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.string "title", null: false
+    t.string "group_name"
+    t.string "party"
+    t.integer "release_year"
+    t.string "platform"
+    t.string "category"
+    t.integer "ranking"
+    t.string "url"
+    t.string "watch_note"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "title"], name: "index_demos_on_user_id_and_title"
+    t.index ["user_id"], name: "index_demos_on_user_id"
+  end
+
   create_table "friendships", force: :cascade do |t|
     t.integer "user_id", null: false
     t.integer "friend_id", null: false
@@ -129,6 +146,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_070126) do
     t.index ["user_id"], name: "index_showcases_on_user_id", unique: true
   end
 
+  create_table "stream_links", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.string "url", null: false
+    t.string "platform", null: false
+    t.string "reference", null: false
+    t.string "title"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id", "platform"], name: "index_stream_links_on_user_id_and_platform", unique: true
+    t.index ["user_id"], name: "index_stream_links_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "email_address", null: false
     t.string "password_digest", null: false
@@ -149,10 +178,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_070126) do
   add_foreign_key "blurbs", "users"
   add_foreign_key "comments", "users"
   add_foreign_key "comments", "users", column: "author_id"
+  add_foreign_key "demos", "users"
   add_foreign_key "friendships", "users"
   add_foreign_key "friendships", "users", column: "friend_id"
   add_foreign_key "profile_pictures", "users"
   add_foreign_key "profiles", "users"
   add_foreign_key "showcase_shots", "showcases"
   add_foreign_key "showcases", "users"
+  add_foreign_key "stream_links", "users"
 end

@@ -136,6 +136,113 @@
         <div><%= form.submit "Save details", class: "btn" %></div>
       <% end %>
 
+      <h3 class="label mt-10">Watch</h3>
+      <p class="mt-4 max-w-lg text-sm text-zinc-500">
+        Link a video or stream and it is embedded on your page from where it is hosted —
+        nothing is stored here. One per service: a YouTube video, an X post or a Twitch
+        channel or video.
+      </p>
+
+      <% if @stream_links.any? %>
+        <ul class="mt-5 grid gap-px border border-zinc-800">
+          <% @stream_links.each do |link| %>
+            <li class="flex items-center gap-3 bg-zinc-950 px-3 py-2">
+              <span class="label w-20"><%= link.platform_label %></span>
+              <a class="min-w-0 flex-1 truncate text-sm text-zinc-300 hover:text-amber-300"
+                 href="<%= link.url %>" rel="noopener noreferrer nofollow" target="_blank"><%= link.display_title %></a>
+              <%= button_to "×", stream_link_path(link), method: :delete,
+                    class: "btn px-2 py-1 hover:text-red-300" %>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <p class="mt-5 text-sm text-zinc-500">No videos or streams yet.</p>
+      <% end %>
+
+      <%= form_with scope: :stream_link, url: stream_links_path, class: "mt-5 grid gap-3" do |form| %>
+        <%= form.url_field :url, placeholder: "https://www.youtube.com/watch?v=…", required: true, class: "field" %>
+        <%= form.text_field :title, placeholder: "what to call it (optional)",
+              maxlength: StreamLink::MAX_TITLE_LENGTH, class: "field" %>
+        <div><%= form.submit "Add to your page", class: "btn" %></div>
+      <% end %>
+
+      <h3 class="label mt-10">Demos</h3>
+      <p class="mt-4 max-w-lg text-sm text-zinc-500">
+        The demoscene, as its own category: group, party, year, platform and placing are
+        the entry. The link is how you watch it — a player if it is a video, a catalogue
+        page otherwise.
+      </p>
+
+      <% if @demos.any? %>
+        <ol class="mt-5 grid gap-px border border-zinc-800">
+          <% @demos.each do |demo| %>
+            <li class="bg-zinc-950 p-3">
+              <%= form_with model: demo, class: "grid gap-3" do |form| %>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <label class="block">
+                    <span class="label">title</span>
+                    <%= form.text_field :title, required: true, maxlength: Demo::MAX_TITLE_LENGTH, class: "field mt-1" %>
+                  </label>
+                  <label class="block">
+                    <span class="label">group</span>
+                    <%= form.text_field :group_name, maxlength: Demo::MAX_LINE_LENGTH, class: "field mt-1" %>
+                  </label>
+                  <label class="block">
+                    <span class="label">party</span>
+                    <%= form.text_field :party, maxlength: Demo::MAX_LINE_LENGTH, class: "field mt-1" %>
+                  </label>
+                  <label class="block">
+                    <span class="label">year</span>
+                    <%= form.number_field :release_year, min: 1980, max: 2100, class: "field mt-1" %>
+                  </label>
+                  <label class="block">
+                    <span class="label">platform</span>
+                    <%= form.select :platform, Demo::PLATFORMS, { include_blank: "—" }, class: "field mt-1" %>
+                  </label>
+                  <label class="block">
+                    <span class="label">category</span>
+                    <%= form.select :category, Demo::CATEGORIES, { include_blank: "—" }, class: "field mt-1" %>
+                  </label>
+                  <label class="block">
+                    <span class="label">placing</span>
+                    <%= form.number_field :ranking, min: 1, max: 999, placeholder: "1 = first place", class: "field mt-1" %>
+                  </label>
+                  <label class="block">
+                    <span class="label">watch at</span>
+                    <%= form.text_field :url, placeholder: "https://www.pouet.net/prod.php?which=…", class: "field mt-1" %>
+                  </label>
+                </div>
+                <label class="block">
+                  <span class="label">note</span>
+                  <%= form.text_field :watch_note, maxlength: 140, placeholder: "where to start, what to look at", class: "field mt-1" %>
+                </label>
+                <div class="flex items-center gap-2">
+                  <%= form.submit "Save", class: "btn" %>
+                </div>
+              <% end %>
+              <%= button_to "Remove", demo_path(demo), method: :delete, class: "label mt-3 hover:text-red-300" %>
+            </li>
+          <% end %>
+        </ol>
+      <% else %>
+        <p class="mt-5 text-sm text-zinc-500">No demos listed yet.</p>
+      <% end %>
+
+      <%= form_with scope: :demo, url: demos_path, class: "mt-5 grid gap-3" do |form| %>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <%= form.text_field :title, placeholder: "title", required: true,
+                maxlength: Demo::MAX_TITLE_LENGTH, class: "field" %>
+          <%= form.text_field :group_name, placeholder: "group", maxlength: Demo::MAX_LINE_LENGTH, class: "field" %>
+          <%= form.text_field :party, placeholder: "party", maxlength: Demo::MAX_LINE_LENGTH, class: "field" %>
+          <%= form.number_field :release_year, placeholder: "year", min: 1980, max: 2100, class: "field" %>
+          <%= form.select :platform, Demo::PLATFORMS, { prompt: "platform" }, class: "field" %>
+          <%= form.select :category, Demo::CATEGORIES, { prompt: "category" }, class: "field" %>
+          <%= form.number_field :ranking, placeholder: "placing", min: 1, max: 999, class: "field" %>
+          <%= form.text_field :url, placeholder: "link to watch it at", class: "field" %>
+        </div>
+        <div><%= form.submit "Add demo", class: "btn" %></div>
+      <% end %>
+
       <h3 class="label mt-10">Profile song</h3>
       <p class="mt-4 max-w-lg text-sm text-zinc-500">
         One track, played on your page as <code class="text-zinc-300">.audio.player</code>. It is

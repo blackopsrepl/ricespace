@@ -33,6 +33,12 @@ Rails.application.routes.draw do
   resources :friendships, only: [ :create, :destroy ] do
     member { patch :move }
   end
+
+  # The videos and streams on a page. Links only — the video stays where it is hosted.
+  resources :stream_links, only: [ :create, :destroy ]
+
+  # The demoscene demos on a page: its own category, with its own facts.
+  resources :demos, only: [ :create, :update, :destroy ]
   resources :blurbs, only: [ :create, :update, :destroy ] do
     member { patch :move }
   end

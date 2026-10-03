@@ -30,6 +30,10 @@ class ProfilesController < ApplicationController
     @friend_count = @user.friendships.count
     @blurbs = @user.blurbs.in_order
     @comments = @user.comments.includes(:author).recent_first.limit(COMMENTS_SHOWN)
+    # The videos and streams, which are links to somebody else's service.
+    @stream_links = @user.stream_links.order(:created_at)
+    # The demoscene demos, which are their own category: the release facts are the entry.
+    @demos = @user.demos.in_order
     @comment = Comment.new
     @can_edit = signed_in? && current_user == @user
   end

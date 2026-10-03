@@ -31,6 +31,13 @@ class User < ApplicationRecord
   has_many :blurbs, dependent: :destroy
   has_many :comments, dependent: :destroy
 
+  # The videos and streams shown on this account's page. Links to somebody else's
+  # service — nothing here is hosted by this site.
+  has_many :stream_links, dependent: :destroy
+
+  # The demoscene demos listed on this account's page, with the release facts.
+  has_many :demos, dependent: :destroy
+
   # Where this account appears on somebody else's page. Destroying the account
   # removes it from their lists rather than leaving a hole.
   has_many :reverse_friendships, class_name: "Friendship", foreign_key: :friend_id, dependent: :destroy

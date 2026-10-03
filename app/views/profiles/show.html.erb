@@ -217,6 +217,116 @@
   </section>
 <% end %>
 
+<%# ── WATCH ───────────────────────────────────────────────────────────────────────
+    The videos and streams. Nothing is hosted here: each is a link, embedded from the
+    service that holds it. An embed is a frame, so a page's own stylesheet cannot touch
+    what is inside it — which is the honest boundary for somebody else's player. %>
+<% if @stream_links.any? %>
+  <section id="watch" class="mb-12">
+    <h2 class="orangetext15 rule">
+      <span class="label">watch</span>
+      <span class="label text-zinc-600"><%= @stream_links.map(&:platform_label).join(" · ") %></span>
+    </h2>
+
+    <ul class="mt-5 grid gap-6 lg:grid-cols-2">
+      <% @stream_links.each do |link| %>
+        <% frame = link.embed %>
+        <li class="stream">
+          <div class="stream-frame border border-zinc-800 bg-zinc-950">
+            <% if frame %>
+              <iframe src="<%= frame[:src] %>" title="<%= frame[:title] %>"
+                      style="aspect-ratio: <%= frame[:aspect] %>; width: 100%; display: block"
+                      loading="lazy" allowfullscreen
+                      allow="clipboard-write; encrypted-media; picture-in-picture"
+                      referrerpolicy="strict-origin-when-cross-origin"
+                      sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"></iframe>
+            <% else %>
+              <p class="p-4 text-sm text-zinc-500">This link cannot be embedded.</p>
+            <% end %>
+          </div>
+          <div class="mt-3 flex flex-wrap items-baseline justify-between gap-2">
+            <p class="nametext text-sm text-zinc-200"><%= link.display_title %></p>
+            <a class="label hover:text-zinc-200" href="<%= link.url %>" rel="noopener noreferrer nofollow"
+               target="_blank"><%= link.platform_label %> ↗</a>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+<% end %>
+
+<%# ── DEMOS ───────────────────────────────────────────────────────────────────────
+    The demoscene. Its own category because a demo is not a video: the group, the party,
+    the year, the platform and the placing are the entry, and the link is how you watch
+    it. A demo whose link is a player is embedded; one that links to a catalogue is a
+    link, which is what most of them are. %>
+<% if @demos.any? %>
+  <section id="demos" class="mb-12">
+    <h2 class="orangetext15 rule">
+      <span class="label">demos</span>
+      <span class="label text-zinc-600"><%= pluralize(@demos.size, "release") %></span>
+    </h2>
+
+    <ul class="mt-5 grid gap-6 lg:grid-cols-2">
+      <% @demos.each do |demo| %>
+        <% frame = demo.embed %>
+        <li class="demo panel">
+          <% if frame %>
+            <iframe src="<%= frame[:src] %>" title="<%= demo.title %>"
+                    class="block w-full border-b border-zinc-800"
+                    style="aspect-ratio: <%= frame[:aspect] %>"
+                    loading="lazy" allowfullscreen
+                    allow="clipboard-write; encrypted-media; picture-in-picture"
+                    referrerpolicy="strict-origin-when-cross-origin"
+                    sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"></iframe>
+          <% end %>
+
+          <div class="p-4">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <h3 class="demo-title nametext text-lg font-semibold text-zinc-100"><%= demo.title %></h3>
+              <% if demo.placing_note %>
+                <span class="demo-placing rice-label"><%= demo.placing_note %></span>
+              <% end %>
+            </div>
+
+            <% if demo.group_name.present? || demo.release_note %>
+              <p class="demo-credit mt-2 text-sm text-zinc-400">
+                <%= demo.group_name %>
+                <% if demo.group_name.present? && demo.release_note %>— <% end %>
+                <%= demo.release_note %>
+              </p>
+            <% end %>
+
+            <% facts = [ [ "category", demo.category ], [ "platform", demo.platform ] ].select { |_, v| v.present? } %>
+            <% if facts.any? %>
+              <dl class="mt-4 flex flex-wrap gap-x-6 gap-y-3">
+                <% facts.each do |label, value| %>
+                  <div class="fact">
+                    <dt class="label"><%= label %></dt>
+                    <dd class="fact-value"><%= value %></dd>
+                  </div>
+                <% end %>
+              </dl>
+            <% end %>
+
+            <% if demo.watch_note.present? %>
+              <p class="mt-4 text-sm text-zinc-500"><%= demo.watch_note %></p>
+            <% end %>
+
+            <% if demo.url.present? %>
+              <p class="mt-4">
+                <a class="btn" href="<%= demo.url %>" rel="noopener noreferrer nofollow" target="_blank">
+                  <%= frame ? "Open on #{frame[:platform]}" : "Watch" %> ↗
+                </a>
+              </p>
+            <% end %>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+<% end %>
+
 <section id="friends" class="friendSpace mb-12">
   <h2 class="orangetext15 rule">
     <span class="label">friends</span>

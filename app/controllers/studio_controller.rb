@@ -68,6 +68,8 @@ class StudioController < ApplicationController
       @tokens ||= current_user.agent_tokens.recent_first
       @picture = current_user.profile_picture
       @blurbs = current_user.blurbs.in_order
+      @stream_links = current_user.stream_links.order(:created_at)
+      @demos = current_user.demos.in_order
       @friendships = current_user.friendships.in_order.includes(:friend)
       @friends = @friendships.map(&:friend)
     end
