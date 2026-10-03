@@ -50,6 +50,9 @@ module DemoSite
           showcase.assign_attributes(spec[:rice])
           showcase.save! if showcase.new_record? || showcase.changed?
         end
+        if spec[:interests]
+          user.profile.update!(interests: spec[:interests]) unless user.profile.interests == spec[:interests]
+        end
         Array(spec[:blurbs] || (spec[:blurb] ? [ spec[:blurb] ] : [])).each do |blurb|
           record = user.blurbs.find_or_initialize_by(title: blurb.fetch(:title))
           record.assign_attributes(blurb)
