@@ -10,6 +10,9 @@ class Blurb < ApplicationRecord
 
   belongs_to :user
 
+  # A posted thing: it can be reacted to, and written on.
+  include Reactable
+
   normalizes :title, with: ->(value) { value.to_s.strip }
 
   validates :title, presence: true, length: { maximum: MAX_TITLE_LENGTH }

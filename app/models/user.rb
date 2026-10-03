@@ -37,18 +37,19 @@ class User < ApplicationRecord
   has_one :showcase, dependent: :destroy
   has_many :agent_tokens, dependent: :destroy
 
-  # This account's page: the people on its friends list, the blocks of text its
-  # owner wrote, and the comments other people left on it.
+  # A page is a posted thing like any other: it can be reacted to and written on. The concern
+  # brings `reactions` and `comments` — the page's own wall — and `owner`, which for a page is
+  # itself. It sits after the associations below so a page's posts can be gathered from them.
+  include Reactable
+
+  # This account's page: the people on its friends list and the blocks of text its owner wrote.
   has_many :friendships, dependent: :destroy
   has_many :friends, through: :friendships, source: :friend
   has_many :blurbs, dependent: :destroy
 
-  # The comments *on* this account's page, and the comments this account left on other
-  # people's. Both have to go with the account, and only one of them is obvious: the first
-  # is the page's own wall, the second is every wall this person ever wrote on. Without the
-  # second, closing an account fails on a foreign key — the comment it left behind points
-  # at a row that no longer exists.
-  has_many :comments, dependent: :destroy
+  # Every comment this account ever left, on any wall at all. It has to go with the account:
+  # without it, closing an account fails on a foreign key, because the comment it left behind
+  # points at a row that no longer exists.
   has_many :written_comments, class_name: "Comment", foreign_key: :author_id, dependent: :destroy
 
   # The videos and streams shown on this account's page. Links to somebody else's
@@ -65,37 +66,68 @@ class User < ApplicationRecord
   # removes it from their lists rather than leaving a hole.
   has_many :reverse_friendships, class_name: "Friendship", foreign_key: :friend_id, dependent: :destroy
 
-  # The likes and dislikes left on this account's page, and the ones this account left
-  # elsewhere. Both cascade, so a closed account leaves no orphaned votes.
-  has_many :ratings, dependent: :destroy
+  # The reactions left on this account's page, and the ones this account left elsewhere.
+  # Both cascade, so a closed account leaves no orphaned votes. The page's own reactions come
+  # from the concern; the rest are here.
   has_many :given_ratings, class_name: "Rating", foreign_key: :author_id, dependent: :destroy
 
-  # Favorites and blocks — the MySpace "Contacting" section.
-  has_many :favorites, dependent: :destroy
-  has_many :favorited_users, through: :favorites, source: :favorited_user
   has_many :blocks, dependent: :destroy
   has_many :blocked_users, through: :blocks, source: :blocked_user
 
-  # What people think of this page: likes minus dislikes.
+  # Everything posted on this account's page, which is what its score is assembled from.
+  # Named once, here, so the ranking and the page agree about what counts by construction.
+  def posted
+    [ self, showcase, *showcase&.shots.to_a, *builds.to_a, *builds.flat_map(&:photos),
+      *demos.to_a, *stream_links.to_a, *blurbs.to_a ].compact
+  end
+
+  # The ids of everything this account has posted, grouped by kind, so a score can be read in
+  # one query per kind instead of one per post.
+  def posted_reactions
+    Rating.where(rateable_type: "User", rateable_id: id)
+  end
+
+  # What people think of this page, which is what people think of everything on it.
   #
-  # Calculated rather than stored. A total in a column is a second copy of the truth that
-  # has to be updated on every rating, every change of mind and every closed account, and
-  # the one time it is not is the time the number is wrong. This is a SUM over an index.
+  # The page and its posts are one thing to a visitor — nobody likes "a page" in the abstract,
+  # they like the rice on it — so the number is the page's own reactions plus every reaction
+  # on everything posted. A page whose build was liked rises because of the build.
+  #
+  # Calculated rather than stored. A total in a column is a second copy of the truth that has
+  # to be updated on every reaction, every change of mind and every closed account, and the
+  # one time it is not is the time the number is wrong.
   def score
-    ratings.sum(:score)
+    reaction_scope.sum(:score)
   end
 
   def likes
-    ratings.where(score: Rating::LIKE).count
+    reaction_scope.where(score: Rating::LIKE).count
   end
 
   def dislikes
-    ratings.where(score: Rating::DISLIKE).count
+    reaction_scope.where(score: Rating::DISLIKE).count
   end
 
-  # How this account rated somebody else's page, or nil for no opinion yet.
+  # Every reaction on this page or on anything posted on it.
+  #
+  # One query: the ids of everything posted are gathered first and the reactions are read by
+  # `(type, id)` pairs, rather than four queries per post.
+  def reaction_scope
+    pairs = posted.map { |thing| [ thing.class.name, thing.id ] }
+    conditions = pairs.map { "(rateable_type = ? AND rateable_id = ?)" }.join(" OR ")
+    bindings = pairs.flatten
+
+    Rating.where(conditions, *bindings)
+  end
+
+  # How this account reacted to somebody's page, or nil for no opinion yet.
   def rating_for(other)
-    given_ratings.find_by(user_id: other.id)&.score
+    given_ratings.find_by(rateable_type: "User", rateable_id: other.id)&.score
+  end
+
+  # How this account reacted to anything at all — a page, a rice, a build — or nil.
+  def reaction_to(thing)
+    given_ratings.find_by(rateable_type: thing.class.name, rateable_id: thing.id)&.score
   end
 
   # The same thing as the word a client sends and receives: "like", "dislike" or nil.

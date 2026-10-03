@@ -8,6 +8,9 @@ class ShowcaseShot < ApplicationRecord
 
   belongs_to :showcase, inverse_of: :shots
 
+  # A posted thing: it can be reacted to, and written on.
+  include Reactable
+
   has_one_attached :image do |attachable|
     attachable.variant :thumb, resize_to_fill: [ 480, 300 ]
     attachable.variant :display, resize_to_limit: [ 1600, 1600 ]

@@ -18,6 +18,9 @@ class StreamLink < ApplicationRecord
 
   belongs_to :user
 
+  # A posted thing: it can be reacted to, and written on.
+  include Reactable
+
   normalizes :url, with: ->(value) { value.to_s.strip }
   normalizes :title, with: ->(value) { value.to_s.strip }
 

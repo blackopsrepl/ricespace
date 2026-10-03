@@ -32,6 +32,9 @@ class Demo < ApplicationRecord
 
   belongs_to :user
 
+  # A posted thing: it can be reacted to, and written on.
+  include Reactable
+
   normalizes :title, with: ->(value) { value.to_s.strip }
   normalizes :group_name, with: ->(value) { value.to_s.strip }
   normalizes :party, with: ->(value) { value.to_s.strip }

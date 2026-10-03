@@ -25,6 +25,9 @@ class Showcase < ApplicationRecord
   }.freeze
 
   belongs_to :user
+
+  # A posted thing: it can be reacted to, and written on.
+  include Reactable
   has_many :shots, -> { order(:position, :id) }, class_name: "ShowcaseShot",
     dependent: :destroy, inverse_of: :showcase
 
