@@ -171,6 +171,73 @@
     background: var(--color-zinc-900);
   }
 
+  /* ── THE REACTION LINE ─────────────────────────────────────────────────────
+     One affordance, repeated. Not a labelled control per feature: a small
+     score, two glyph buttons, and a link to the wall. It has to read as a
+     single quiet line under a thing, because a page can carry a rice, several
+     shots, builds, demos and links — and a page that shouts at every one of
+     them is a page that shouts. */
+  .reaction-line {
+    border: 0;
+    padding: 0;
+    font-size: 0.8125rem;
+  }
+
+  /* The reaction buttons are glyphs, not buttons: no border box, no padding theatre,
+     just a target big enough to hit that grows when it is yours. */
+  .reaction {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.75rem;
+    min-height: 1.75rem;
+    padding: 0 0.25rem;
+    border: 1px solid transparent;
+    color: var(--color-zinc-500);
+    background: transparent;
+    font-size: 0.9375rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .reaction:hover {
+    color: var(--color-zinc-200);
+    border-color: var(--color-zinc-700);
+  }
+  /* The one you pressed is the one that is lit. */
+  .reaction-on {
+    color: var(--color-amber-300);
+    border-color: var(--color-amber-400);
+  }
+  .reaction form,
+  form.inline {
+    display: inline;
+  }
+
+  /* A wall under an artifact: closed until asked for, so a page with a build, a demo and
+     four shots is not six comment boxes long. The page's own wall is a plain block, not a
+     `<details>`, and so carries no left rule — it is the page, not a thing on it. */
+  .wall {
+    border-left: 1px solid var(--color-zinc-800);
+    padding-left: 0.75rem;
+  }
+  /* The summary is the affordance, so it has to look pressable and not like a list item. */
+  .wall > summary {
+    cursor: pointer;
+    list-style: none;
+    color: var(--color-zinc-500);
+  }
+  .wall > summary::-webkit-details-marker {
+    display: none;
+  }
+  .wall > summary::marker {
+    content: "";
+  }
+  /* The page's own wall sits flush; only the walls under things are inset. */
+  .comments .wall {
+    border-left: 0;
+    padding-left: 0;
+  }
+
   /* A page in the directory: its colours are the page's, its frame is ours. */
   .page-card {
     border: 1px solid var(--color-zinc-800);

@@ -1,0 +1,35 @@
+<%# The wall around a posted thing.
+
+    Locals:
+      thing     what was posted — anything including Reactable
+      page      the account whose page this is
+      kind      the route name for this thing
+      anchor    where this wall lives, so the form comes back to it
+      expanded  whether it starts open
+      summary   whether this wall is a disclosure at all — true under an artifact, false for
+                the page's own wall, whose section header already says it
+
+    An artifact's wall is a native `<details>`: closed until asked for, no script, no nonce,
+    works with a keyboard. A page carrying a rice, a build, a demo and four links is otherwise
+    seven comment boxes long, and "Nothing here yet" repeated seven times is not a wall.
+
+    The page's own wall is not a disclosure — it is always open — so it is a plain block. An
+    earlier version wrapped both in `<details>` and left the page's one summary-less, which
+    browsers render with their own label ("details", in Chrome) sitting above the comments. %>
+<% comments = thing.wall.limit(20) %>
+<% count = thing.comments.count %>
+
+<% if local_assigns.fetch(:summary, true) %>
+  <details id="<%= anchor %>-wall" class="wall mt-2" <%= "open" if local_assigns.fetch(:expanded, false) %>>
+    <summary class="wall-summary label hover:text-zinc-200">
+      <%= count.positive? ? "#{count} #{'reply'.pluralize(count)}" : "reply" %>
+    </summary>
+    <div class="mt-3">
+      <%= render "shared/wall_contents", thing: thing, page: page, kind: kind, anchor: anchor, comments: comments %>
+    </div>
+  </details>
+<% else %>
+  <div id="<%= anchor %>-wall" class="wall">
+    <%= render "shared/wall_contents", thing: thing, page: page, kind: kind, anchor: anchor, comments: comments %>
+  </div>
+<% end %>

@@ -1,0 +1,52 @@
+<%# The box for writing on a posted thing, and everything already written on it. The same
+    contents the page's own wall and every artifact's wall show; the two wrappers around it
+    live in `_wall.html.erb`.
+
+    Locals:
+      thing     what was posted — anything including Reactable
+      page      the account whose page this is
+      kind      the route name for this thing
+      anchor    where this wall lives, so the form comes back to it
+      comments  the wall, already read, so the count and the list are the same query's answer %>
+<% if signed_in? %>
+  <%= form_with model: Comment.new,
+        url: profile_post_comments_path(page, kind, thing.id, anchor: anchor),
+        id: "#{anchor}-form", class: "mb-3 max-w-2xl" do |form| %>
+    <div class="flex flex-wrap items-start gap-2">
+      <%= form.text_area :body, rows: 2, required: true,
+            placeholder: "write on this as @#{current_user.username}", class: "field" %>
+      <%= form.submit "Post", class: "btn" %>
+    </div>
+  <% end %>
+<% else %>
+  <p class="text-sm text-zinc-500">
+    <%= link_to "Sign in", new_session_path, class: "underline hover:text-zinc-200" %> to write on this.
+  </p>
+<% end %>
+
+<% if comments.any? %>
+  <ul class="space-y-px border border-zinc-800">
+    <% comments.each do |comment| %>
+      <li class="comment bg-zinc-950 p-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <%= image_tag comment.author.profile_picture.image.variant(:thumb), alt: "",
+                  class: "h-6 w-6 border border-zinc-700 object-cover" if comment.author&.profile_picture&.image&.attached? %>
+            <%= link_to comment.displayed_author, profile_path(comment.author),
+                  class: "nametext text-sm text-zinc-200 hover:text-amber-300" %>
+          </div>
+          <span class="label"><%= time_ago_in_words(comment.created_at) %> ago</span>
+        </div>
+        <p class="comment-body mt-2 whitespace-pre-wrap text-sm text-zinc-300"><%= comment.body %></p>
+        <% if signed_in? && (current_user == thing.owner || current_user == comment.author) %>
+          <p class="mt-1 text-right">
+            <%= button_to "Remove", comment_path(comment), method: :delete,
+                  class: "label hover:text-red-300", form_class: "inline" %>
+          </p>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p class="text-sm text-zinc-500">Nothing here yet.</p>
+<% end %>

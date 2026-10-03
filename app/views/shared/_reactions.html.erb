@@ -1,0 +1,40 @@
+<%# The reaction line: what people said about a posted thing, and the two controls for saying
+    something yourself.
+
+    Locals:
+      thing     what is posted — anything including Reactable
+      page      the account whose page this is (for the URL, and for "is this mine?")
+      kind      the name the routes use for this thing: "page", "showcase", "build"…
+      anchor    the id this line lives under, and the wall it belongs to
+
+    One small affordance, repeated, is the whole design. A page can carry a rice, several
+    shots, a build, demos and links; a labelled control per feature would make the page a
+    control panel. This is a score and two glyphs — and because it is one partial, every
+    artifact on the site is reacted to in exactly the same way.
+
+    The wall is the sibling partial. Its summary carries the reply count, so the invitation
+    to write sits on the wall itself rather than being repeated here. %>
+<% mine = thing.respond_to?(:owner) ? thing.owner == current_user : false %>
+<% your_reaction = signed_in? && !mine ? current_user.reaction_to(thing) : nil %>
+
+<div class="reaction-line flex flex-wrap items-center gap-3" id="<%= anchor %>-reactions">
+  <span class="reaction-score fact-value text-lg <%= thing.score.negative? ? "text-zinc-400" : "text-amber-300" %>"
+        title="what people said about this"><%= thing.score %></span>
+
+  <% if signed_in? && !mine %>
+    <%# Pressing what you already pressed takes the reaction back, the way it did on these
+        pages. Without that there is no way to un-react, and a mis-click is permanent. %>
+    <%= button_to (your_reaction == Rating::LIKE ? "★" : "☆"),
+          rate_post_path(page, kind, thing.id, score: Rating::LIKE, anchor: anchor),
+          class: "reaction #{'reaction-on' if your_reaction == Rating::LIKE}",
+          title: your_reaction == Rating::LIKE ? "you liked this — press to take it back" : "like this",
+          form_class: "inline" %>
+    <%= button_to (your_reaction == Rating::DISLIKE ? "▼" : "▽"),
+          rate_post_path(page, kind, thing.id, score: Rating::DISLIKE, anchor: anchor),
+          class: "reaction #{'reaction-on' if your_reaction == Rating::DISLIKE}",
+          title: your_reaction == Rating::DISLIKE ? "you disliked this — press to take it back" : "dislike this",
+          form_class: "inline" %>
+  <% elsif !signed_in? %>
+    <%= link_to "sign in to react", new_session_path, class: "label hover:text-zinc-200" %>
+  <% end %>
+</div>
