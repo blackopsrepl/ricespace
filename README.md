@@ -139,6 +139,19 @@ Ruby 3.4.3 and SQLite. No Node.
     bin/setup      # bundle install, prepare the database
     bin/dev        # serve on http://localhost:3000
 
+An empty site is a poor way to see what the site is, so there is a demo set to fill it
+with — the three real pages, one page wearing each layout, two that write their own CSS
+instead, and enough friends, comments and ratings for the directory and the ranking to
+have something in them:
+
+    bin/rails demo:populate   # write the demo spaces
+    bin/rails demo:reset      # erase them and write them again
+
+It is deliberately not part of `db:seeds`: seeding an install should give you a site with
+its owner account on it, not fifteen strangers. It is safe to run more than once, and it is
+written against the layouts and the page anatomy rather than against fixed text, so adding
+a layout and running it again puts a page behind that layout too.
+
 The live instance runs as two systemd units — the Rails server on loopback and a
 cloudflared quick tunnel in front of it — so the public address changes when the
 tunnel restarts and is read with `ricespace-url`. The deploy loop, and the two paths
