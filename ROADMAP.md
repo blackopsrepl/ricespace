@@ -18,6 +18,12 @@ between a credential list and an account is the password itself.
 is a plain `429`, and the limit is visible in the code rather than in a proxy
 config nobody reads.
 
+**Done.** `SessionsController` (10 per 3 minutes) and `RegistrationsController` (5 per
+3 minutes) declare their limits as constants beside the code that enforces them, refuse
+with a `429`, and the refusal is a page rather than a bare body. Per client, not per
+account — locking an account after failed attempts would let anyone lock anybody out.
+Both are tested in `account_lifecycle_test.rb`.
+
 ### 2. Let a person close their account
 
 **Problem.** An account can be created and can never be removed by its owner. For a
@@ -28,6 +34,10 @@ so the capability exists and only the door is missing.
 **Done when** a signed-in owner can delete their account from the studio, the
 confirmation is deliberate rather than a stray click, and the page, picture, rice,
 comments, friends and tokens all go with it.
+
+**Done.** The studio carries the button in its own red panel, saying what goes and that
+it does not undo, behind a confirmation naming the account. The site's own account is
+excluded, and the test for that is what caught the seeded-Ron password problem.
 
 ### 3. Bound what one account can store
 
