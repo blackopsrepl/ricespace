@@ -40,12 +40,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Linux x86_64 is the platform this is actually handed to, and musl makes the
+          # artifact run on any distribution rather than only the one that built it.
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
             name: linux-x86_64
-          - target: aarch64-unknown-linux-musl
-            os: ubuntu-latest
-            name: linux-aarch64
           - target: x86_64-apple-darwin
             os: macos-latest
             name: macos-x86_64
@@ -61,25 +60,7 @@ jobs:
 
       - name: musl toolchain
         if: contains(matrix.target, 'musl')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools
-
-          # Cross-compiling to musl on another architecture needs a target-prefixed
-          # compiler: `ring` (arriving through ureq's TLS) looks for `aarch64-linux-musl-gcc`
-          # and reports "No such file or directory", naming neither the package nor the
-          # reason. Ubuntu has no such package for musl targets, so the toolchain comes from
-          # musl.cc, which is what the Rust ecosystem uses for this.
-          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
-            curl -fsSL https://musl.cc/aarch64-linux-musl-cross.tgz -o /tmp/musl-cross.tgz
-            sudo tar xzf /tmp/musl-cross.tgz -C /opt
-            echo "/opt/aarch64-linux-musl-cross/bin" >> "$GITHUB_PATH"
-
-            # Cargo needs to be told which linker to use for this target; the prefixed
-            # compiler on PATH is not enough on its own.
-            mkdir -p "$HOME/.cargo"
-            printf '[target.aarch64-unknown-linux-musl]\nlinker = "aarch64-linux-musl-gcc"\n' >> "$HOME/.cargo/config.toml"
-          fi
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
 
       - run: cargo build --release --manifest-path cli/Cargo.toml --target ${{ matrix.target }}
 
@@ -94,7 +75,7 @@ jobs:
       # Prove the artifact runs before it is published. A binary that cannot print its
       # own version is not a binary anybody should download.
       - name: the artifact runs
-        if: matrix.target == 'x86_64-unknown-linux-musl' || matrix.target == 'aarch64-unknown-linux-musl'
+        if: contains(matrix.target, 'linux')
         run: |
           cd cli/target/${{ matrix.target }}/release
           ./ricespace --version
