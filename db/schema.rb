@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_140000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_210002) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -94,14 +94,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_140000) do
   end
 
   create_table "comments", force: :cascade do |t|
-    t.integer "user_id", null: false
     t.integer "author_id", null: false
     t.text "body", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "commentable_type", null: false
+    t.integer "commentable_id", null: false
     t.index ["author_id"], name: "index_comments_on_author_id"
-    t.index ["user_id", "created_at"], name: "index_comments_on_user_id_and_created_at"
-    t.index ["user_id"], name: "index_comments_on_user_id"
+    t.index ["commentable_type", "commentable_id", "created_at"], name: "index_comments_on_commentable_and_time"
+    t.index ["created_at"], name: "index_comments_on_user_id_and_created_at"
   end
 
   create_table "demos", force: :cascade do |t|
@@ -119,15 +120,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_140000) do
     t.datetime "updated_at", null: false
     t.index ["user_id", "title"], name: "index_demos_on_user_id_and_title"
     t.index ["user_id"], name: "index_demos_on_user_id"
-  end
-
-  create_table "favorites", force: :cascade do |t|
-    t.integer "user_id", null: false
-    t.integer "favorited_user_id", null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["favorited_user_id"], name: "index_favorites_on_favorited_user_id"
-    t.index ["user_id"], name: "index_favorites_on_user_id"
   end
 
   create_table "friendships", force: :cascade do |t|
@@ -163,14 +155,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_140000) do
   end
 
   create_table "ratings", force: :cascade do |t|
-    t.integer "user_id", null: false
     t.integer "author_id", null: false
     t.integer "score", default: 1, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "rateable_type", null: false
+    t.integer "rateable_id", null: false
+    t.index ["author_id", "rateable_type", "rateable_id"], name: "index_ratings_on_author_and_rateable", unique: true
     t.index ["author_id"], name: "index_ratings_on_author_id"
-    t.index ["user_id", "author_id"], name: "index_ratings_on_user_id_and_author_id", unique: true
-    t.index ["user_id", "score"], name: "index_ratings_on_user_id_and_score"
+    t.index ["rateable_type", "rateable_id"], name: "index_ratings_on_rateable_type_and_rateable_id"
   end
 
   create_table "showcase_shots", force: :cascade do |t|
@@ -235,16 +228,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_140000) do
   add_foreign_key "blurbs", "users"
   add_foreign_key "build_photos", "builds"
   add_foreign_key "builds", "users"
-  add_foreign_key "comments", "users"
   add_foreign_key "comments", "users", column: "author_id"
   add_foreign_key "demos", "users"
-  add_foreign_key "favorites", "favorited_users"
-  add_foreign_key "favorites", "users"
   add_foreign_key "friendships", "users"
   add_foreign_key "friendships", "users", column: "friend_id"
   add_foreign_key "profile_pictures", "users"
   add_foreign_key "profiles", "users"
-  add_foreign_key "ratings", "users"
   add_foreign_key "ratings", "users", column: "author_id"
   add_foreign_key "showcase_shots", "showcases"
   add_foreign_key "showcases", "users"
