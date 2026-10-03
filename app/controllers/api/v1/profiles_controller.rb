@@ -4,12 +4,15 @@ module Api
   module V1
     # The profile of the account that owns the presented token.
     #
-    # An agent reads the document here, rewrites it, and writes it back. The
-    # response carries both the document (what the author wrote, exactly as
-    # stored) and the rendered markup (what a visitor will see), so an agent can
-    # tell whether its HTML survived the sanitiser without a browser. It also
-    # carries the revision it just read, which the agent sends back on its next
-    # write.
+    # An agent is a second editing tool for the page its owner already has in the
+    # browser — not a separate channel — so this is the same read/whole-document
+    # write the studio does, and the same revision check.
+    #
+    # The response carries the document as stored, the markup and stylesheet as a
+    # visitor will get them, and the revision that was just read, which the agent
+    # sends back on its next write. The separated stylesheet is the point: a
+    # profile's layout lives in `<style>`, and an agent that never sees which of
+    # its rules survived is editing blind.
     class ProfilesController < BaseController
       def show
         render json: { profile: presentation(current_user.profile) }
@@ -62,14 +65,21 @@ module Api
         end
 
         def presentation(profile)
+          rendered = profile.rendered
+
           {
             username: current_user.username,
             url: profile_url(current_user.username),
             document: profile.document,
-            rendered: profile.markup.to_s,
+            html: rendered.html.to_s,
+            css: rendered.css,
             version: profile.version,
             updated_at: profile.updated_at.iso8601,
-            limits: { document_bytes: Profile::MAX_DOCUMENT_LENGTH, rendered_bytes: ProfileMarkup::MAX_BYTES }
+            limits: {
+              document_bytes: Profile::MAX_DOCUMENT_LENGTH,
+              html_bytes: ProfileMarkup::MAX_BYTES,
+              css_bytes: PageCss::MAX_BYTES
+            }
           }
         end
     end

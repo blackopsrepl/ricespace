@@ -1,5 +1,13 @@
 <% content_for :title, "#{@user.display_name} — RiceSpace" %>
 
+<%# The author's stylesheet, written after everything the site itself loads, so a
+    profile can restyle the whole page — the site's chrome included. This is the
+    part of the old profiles that was never a rich-text field, and it is why this
+    tag is here rather than scoped to the markup below. It is cleaned by PageCss. %>
+<% if @rendered.css.present? %>
+  <style><%= @rendered.css %></style>
+<% end %>
+
 <header class="mb-6 flex flex-wrap items-end justify-between gap-4">
   <div>
     <h1 class="text-2xl font-bold tracking-tight"><%= @user.display_name %></h1>
@@ -24,12 +32,14 @@
     <% end %>
   </p>
 <% else %>
-  <%# The one place author markup reaches a page. Everything a visitor sees of the
-      page itself comes through @profile.markup: sanitised on render. %>
-  <article class="profile-markup rounded-lg border border-zinc-800 bg-white p-6 text-zinc-900">
-    <%= @profile.markup %>
+  <%# Where a page written by the author sits in the document: inside an element
+      whose id a stylesheet may reach, and nothing else. No column around it and no
+      card of ours — the page's own rules decide what it looks like, including
+      whether the site's chrome is still visible. %>
+  <article id="profile" class="profile-page">
+    <%= @rendered.html %>
   </article>
-  <p class="mt-3 text-xs text-zinc-600">
+  <p id="profile-stamp" class="mt-3 text-xs text-zinc-600">
     Markup by @<%= @user.username %>, last changed <%= time_ago_in_words(@profile.updated_at) %> ago.
   </p>
 <% end %>

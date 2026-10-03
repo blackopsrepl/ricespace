@@ -118,27 +118,42 @@ class SiteTest < ActionDispatch::IntegrationTest
     assert_includes @user.profile.reload.document, "by hand"
   end
 
-  test "a profile page shows the author's markup, sanitized" do
+  test "a profile page shows the author's page: markup and a stylesheet that can restyle the whole thing" do
     @user.profile.update!(document: <<~HTML)
-      <h1 style="color:#ff00ff">vittorio</h1>
-      <marquee behavior="alternate"><font color="red">welcome</font></marquee>
-      <img src="https://example.com/me.gif" onerror="alert('pwned')">
-      <script>document.title = "pwned"</script>
-      <a href="javascript:alert(1)">link</a>
+      <style>
+        body { background: #000 url(https://example.com/tile.gif) fixed }
+        .main { position: absolute; left: 50%; top: 130px; margin-left: -400px; z-index: 3 }
+        .orangetext15 { visibility: hidden }
+      </style>
+      <div class="main">
+        <h1 style="color:#ff00ff">vittorio</h1>
+        <marquee behavior="alternate"><font color="red">welcome</font></marquee>
+        <img src="https://example.com/me.gif" onerror="alert('pwned')">
+        <script>document.title = "pwned"</script>
+        <a href="javascript:alert(1)">link</a>
+      </div>
     HTML
 
     get profile_url(@user)
 
     assert_response :success
 
-    page = response.body.split(%(<article class="profile-markup)).last
+    # The author's sheet is on the page as a sheet, not as content inside the page's
+    # markup element, and it says what the author asked for.
+    sheet = response.body[/<style>(.*?)<\/style>/m, 1].to_s
+    assert_includes sheet, "position: absolute"
+    assert_includes sheet, "z-index: 3"
+    assert_includes sheet, "visibility: hidden"
+    assert_includes sheet, "url(https://example.com/tile.gif)"
 
-    assert_match "<marquee", page
-    assert_match "color:#ff00ff", page
-    assert_match %(src="https://example.com/me.gif"), page
-    refute_match "pwned", page
-    refute_match "javascript:", page
-    refute_match "<script", page
+    markup = response.body.split(%(<article id="profile")).last
+
+    assert_includes markup, "<marquee"
+    assert_includes markup, "color: #ff00ff"
+    assert_includes markup, %(src="https://example.com/me.gif")
+    refute_includes markup, "pwned"
+    refute_includes markup, "javascript:"
+    refute_includes markup, "<script"
   end
 
   test "a profile page is served with a content security policy that forbids scripts and framing" do

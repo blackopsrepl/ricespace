@@ -14,29 +14,45 @@ module Api
       end
 
       test "reading a profile returns the stored document and what visitors will see" do
-        @user.profile.update!(document: %(<marquee><font color="red">hi</font></marquee><script>alert(1)</script>))
+        @user.profile.update!(document: <<~HTML)
+          <style>body { background: #000 } .orangetext15 { visibility: hidden }</style>
+          <marquee><font color="red">hi</font></marquee><script>alert(1)</script>
+        HTML
 
         get api_v1_profile_url, headers: bearer
 
         assert_response :success
         body = response.parsed_body.fetch("profile")
+        # The document is what the author wrote, byte for byte, script and all: it
+        # is cleaned on the way out, not on the way in.
         assert_includes body.fetch("document"), "<script>"
-        assert_includes body.fetch("rendered"), "<marquee>"
-        refute_includes body.fetch("rendered"), "alert(1)"
+        assert_includes body.fetch("html"), "<marquee>"
+        refute_includes body.fetch("html"), "script"
+        # The stylesheet comes back separately, because it is what lays the page out.
+        assert_includes body.fetch("css"), "background: #000"
+        assert_includes body.fetch("css"), "visibility: hidden"
+        refute_includes body.fetch("html"), "<style"
         assert_equal "vittorio", body.fetch("username")
         assert_equal @user.profile.version, body.fetch("version")
-        assert_equal Profile::MAX_DOCUMENT_LENGTH, body.dig("limits", "document_bytes")
+        assert_equal PageCss::MAX_BYTES, body.dig("limits", "css_bytes")
       end
 
-      test "writing a profile replaces the document and echoes the sanitized result" do
+      test "writing a profile replaces the document and echoes what it became" do
         patch api_v1_profile_url,
-          params: { profile: { document: %(<p>new look</p><iframe src="https://example.com"></iframe>),
+          params: { profile: { document: %(<style>.main { position: absolute; top: 0 }</style>) +
+                                 %(<p>new look</p><iframe src="https://example.com"></iframe>),
                                version: @user.profile.version } },
           headers: bearer, as: :json
 
         assert_response :success
-        assert_includes response.parsed_body.dig("profile", "document"), "iframe"
-        refute_includes response.parsed_body.dig("profile", "rendered"), "iframe"
+        body = response.parsed_body.fetch("profile")
+
+        assert_includes body.fetch("document"), "iframe"
+        refute_includes body.fetch("html"), "iframe"
+        assert_includes body.fetch("html"), "new look"
+        # A rule an agent wrote in a style block is reported back with the position
+        # it asked for, not silently dropped.
+        assert_includes body.fetch("css"), "position: absolute"
         assert_includes @user.profile.reload.document, "new look"
       end
 
