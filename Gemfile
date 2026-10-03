@@ -51,6 +51,10 @@ end
 group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
+
+  # Run the server and the asset compiler together with `bin/dev`
+  # [https://github.com/ddollar/foreman]
+  gem "foreman"
 end
 
 group :test do
