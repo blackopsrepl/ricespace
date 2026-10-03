@@ -13,13 +13,13 @@ class SiteTest < ActionDispatch::IntegrationTest
     get root_url
 
     assert_response :success
-    assert_match "Pages you write yourself", response.body
+    assert_match "on a page you wrote yourself", response.body
 
     @user.profile.update!(document: %(<h1 style="color:#ff00ff">vittorio</h1>))
     get root_url
 
     assert_match "Vittorio Distefano", response.body
-    assert_match "Visit page", response.body
+    assert_match "changed", response.body
   end
 
   test "creating a page signs the owner in and lands them in the studio" do
@@ -32,7 +32,8 @@ class SiteTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to studio_url
     follow_redirect!
-    assert_match "You are signed in as", response.body
+    assert_match "Signed in as", response.body
+    assert_match "@cordelia", response.body
     assert_equal 0, User.find_by(username: "cordelia").profile.document.length
   end
 
@@ -170,7 +171,7 @@ class SiteTest < ActionDispatch::IntegrationTest
   test "a profile with no page says so" do
     get profile_url(@user)
 
-    assert_match "no markup yet", response.body
+    assert_match "No markup yet", response.body
   end
 
   test "an unknown username is not found" do

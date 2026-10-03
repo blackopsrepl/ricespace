@@ -24,6 +24,8 @@ class ProfilesController < ApplicationController
     @profile = @user.profile
     @rendered = @profile.rendered
     @picture = @user.profile_picture
+    # The showcase, which is the main event on this page rather than one section of it.
+    @showcase = @user.showcase
     @friends = @user.friendships.in_order.includes(:friend).map(&:friend).first(TOP_FRIENDS)
     @friend_count = @user.friendships.count
     @blurbs = @user.blurbs.in_order

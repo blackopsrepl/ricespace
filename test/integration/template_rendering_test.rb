@@ -35,7 +35,7 @@ class TemplateRenderingTest < ActionDispatch::IntegrationTest
     get studio_path
 
     assert_response :success
-    assert_match "Your page's bits", response.body
+    assert_match "The page's bits", response.body
     assert_match "Interests", response.body
     assert_match "Upload picture", response.body
   end

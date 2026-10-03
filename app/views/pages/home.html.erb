@@ -1,94 +1,178 @@
-<% content_for :title, "RiceSpace — pages you write yourself" %>
+<% content_for :title, "RiceSpace — your desktop, on a page" %>
 
-<section class="mb-10">
-  <h1 class="text-3xl font-bold tracking-tight">Pages you write yourself.</h1>
-  <p class="mt-3 max-w-2xl text-zinc-400">
-    Every account gets a page and the HTML and CSS to fill it. Write it in the studio, wear a layout
-    somebody else wrote, or hand a coding agent a token and let it write the page for you. No app
-    store, no algorithm — just the pages.
+<%# The front page, in the order the site's value is: the rices, then the pages, then
+    the layouts. No hero illustration, no card grid of features, no call-to-action band
+    — the pages are the product, so the front page shows pages. %>
+
+<section class="mb-14">
+  <h1 class="max-w-3xl text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
+    Your desktop, on a page you wrote yourself.
+  </h1>
+  <p class="mt-5 max-w-2xl text-lg leading-relaxed text-zinc-400">
+    Every account gets a page and the HTML and CSS to fill it. The point of the page is
+    the rice: a shot of your setup, what is in it, and what you run. Write the page by
+    hand, wear a layout somebody else wrote, or hand an agent a token and let it write
+    for you.
   </p>
-  <div class="mt-5 flex flex-wrap gap-3 text-sm">
-    <%= link_to "Create a page", new_registration_path,
-          class: "rounded bg-fuchsia-500 px-4 py-2 font-medium text-zinc-950 hover:bg-fuchsia-400" %>
-    <%= link_to "Browse layouts", layouts_path,
-          class: "rounded border border-zinc-700 px-4 py-2 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100" %>
-    <%= link_to "What an agent can write", agents_path,
-          class: "rounded border border-zinc-700 px-4 py-2 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100" %>
+  <div class="mt-7 flex flex-wrap items-center gap-3">
+    <%= link_to "Create a page", new_registration_path, class: "btn btn-primary" %>
+    <%= link_to "Browse layouts", layouts_path, class: "btn" %>
+    <%= link_to "What an agent can write", agents_path, class: "btn" %>
   </div>
-  <p class="mt-4 text-xs text-zinc-600">
-    <%= pluralize(@profile_count, "page") %> so far.
+  <p class="label mt-6">
+    <%= pluralize(@showcase_count, "rice") %> · <%= pluralize(@profile_count, "page") %>
   </p>
 </section>
 
-<section>
-  <h2 class="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">Recently changed</h2>
+<section id="showcase-gallery" class="mb-16">
+  <h2 class="rule">
+    <span class="label">Rices</span>
+    <span class="label text-zinc-600">the reason the site exists</span>
+  </h2>
+
+  <% if @showcases.any? %>
+    <% lead = @showcases.first %>
+    <%# The lead rice gets the frame, because on a gallery page the first thing should
+        be a desktop rather than a directory. %>
+    <article class="showcase-card mt-8">
+      <%= link_to profile_path(lead.user, anchor: "showcase"), class: "group block" do %>
+        <figure class="rice-frame">
+          <%= image_tag lead.cover.image.variant(:display),
+                alt: lead.cover.caption.presence || "#{lead.user.display_name}'s desktop",
+                class: "block max-h-[32rem] w-full object-cover" %>
+        </figure>
+        <div class="mt-5 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h3 class="nametext text-2xl font-semibold tracking-tight group-hover:text-amber-300">
+              <%= lead.title.presence || "#{lead.user.display_name}'s rice" %>
+            </h3>
+            <p class="label mt-2">@<%= lead.user.username %></p>
+            <% if lead.summary.present? %>
+              <p class="mt-3 max-w-2xl text-zinc-400"><%= lead.summary %></p>
+            <% end %>
+          </div>
+          <% if lead.facts.any? %>
+            <dl class="flex flex-wrap gap-x-5 gap-y-3">
+              <% lead.facts.first(4).each do |label, value| %>
+                <div class="fact">
+                  <dt class="label"><%= label %></dt>
+                  <dd class="fact-value" title="<%= value %>"><%= value %></dd>
+                </div>
+              <% end %>
+            </dl>
+          <% end %>
+        </div>
+      <% end %>
+    </article>
+
+    <% if @showcases.size > 1 %>
+      <ul class="mt-10 grid gap-px border border-zinc-800 sm:grid-cols-2 lg:grid-cols-3">
+        <% @showcases.drop(1).each do |showcase| %>
+          <li class="showcase-card bg-zinc-950">
+            <%= link_to profile_path(showcase.user, anchor: "showcase"), class: "group block" do %>
+              <%= image_tag showcase.cover.image.variant(:thumb),
+                    alt: showcase.cover.caption.presence || "#{showcase.user.display_name}'s desktop",
+                    class: "block aspect-[8/5] w-full border-b border-zinc-800 object-cover" %>
+              <div class="p-4">
+                <h3 class="nametext truncate font-semibold text-zinc-100 group-hover:text-amber-300">
+                  <%= showcase.title.presence || "#{showcase.user.display_name}'s rice" %>
+                </h3>
+                <p class="label mt-2">@<%= showcase.user.username %></p>
+                <% if showcase.summary.present? %>
+                  <p class="mt-2 line-clamp-2 text-sm text-zinc-500"><%= showcase.summary %></p>
+                <% end %>
+                <% if showcase.facts.any? %>
+                  <p class="label mt-3 truncate"><%= showcase.facts.map { |_, value| value }.join(" · ") %></p>
+                <% end %>
+              </div>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    <% end %>
+  <% else %>
+    <div class="mt-8 border border-dashed border-zinc-800 p-8">
+      <p class="max-w-xl text-zinc-400">
+        No rices yet. A rice is a screenshot of your setup with a few facts about it —
+        the first one on this page can be yours.
+      </p>
+      <%= link_to "Create a page", new_registration_path, class: "btn btn-primary mt-5" %>
+    </div>
+  <% end %>
+</section>
+
+<section id="pages" class="mb-16">
+  <h2 class="rule">
+    <span class="label">Pages</span>
+    <span class="label text-zinc-600">markup by their owners, recently changed</span>
+  </h2>
 
   <% if @profiles.any? %>
-    <ul class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <ul class="mt-8 grid gap-px border border-zinc-800 sm:grid-cols-2 lg:grid-cols-3">
       <% @profiles.each do |profile| %>
-        <li class="profile-card rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+        <li class="page-card">
           <%# The page's own colours, read out of its stylesheet — the closest a
               directory can get to showing the page without showing it. %>
           <% thumbnail = PageThumbnail.new(profile.rendered.css) %>
-          <div class="mb-3 h-16 rounded border border-zinc-800 p-2"
-               style="<%= background_style(thumbnail.background) %>">
-            <span class="text-sm font-semibold" style="<%= colour_style(thumbnail.foreground, fallback: "#a1a1aa") %>">
-              <%= profile.user.display_name %>
-            </span>
-            <span class="block text-[10px]" style="<%= colour_style(thumbnail.foreground, fallback: "#a1a1aa") %>">
-              @<%= profile.user.username %>
-            </span>
-          </div>
-
-          <div class="flex items-center gap-2">
-            <% if profile.user.profile_picture&.image&.attached? %>
-              <%= image_tag profile.user.profile_picture.image.variant(:thumb), alt: "",
-                    class: "h-8 w-8 rounded border border-zinc-700 object-cover" %>
-            <% end %>
-            <div class="min-w-0">
-              <p class="truncate text-sm font-semibold"><%= profile.user.display_name %></p>
-              <% if profile.user.greeting.present? %>
-                <p class="truncate text-xs text-zinc-500"><%= profile.user.greeting %></p>
-              <% end %>
+          <%= link_to profile_path(profile.user), class: "group block p-4" do %>
+            <div class="mb-4 border border-zinc-800 p-3" style="<%= background_style(thumbnail.background) %>">
+              <span class="block text-sm font-semibold" style="<%= colour_style(thumbnail.foreground, fallback: "#a1a1aa") %>">
+                <%= profile.user.display_name %>
+              </span>
+              <span class="label block pt-1" style="<%= colour_style(thumbnail.foreground, fallback: "#a1a1aa") %>">
+                @<%= profile.user.username %>
+              </span>
             </div>
-          </div>
 
-          <% if profile.song? %>
-            <p class="mt-2 truncate text-xs text-zinc-500">
-              ♫ <%= profile.song_title.presence || "a song" %>
+            <div class="flex items-center gap-3">
+              <% if profile.user.profile_picture&.image&.attached? %>
+                <%= image_tag profile.user.profile_picture.image.variant(:thumb), alt: "",
+                      class: "h-9 w-9 border border-zinc-700 object-cover" %>
+              <% end %>
+              <div class="min-w-0">
+                <p class="truncate font-semibold text-zinc-100 group-hover:text-amber-300">
+                  <%= profile.user.display_name %>
+                </p>
+                <% if profile.user.greeting.present? %>
+                  <p class="truncate text-sm text-zinc-500"><%= profile.user.greeting %></p>
+                <% end %>
+              </div>
+            </div>
+
+            <p class="label mt-4">
+              changed <%= time_ago_in_words(profile.updated_at) %> ago
+              <% if profile.song? %> · ♫<%= profile.song_title.presence || "a song" %><% end %>
             </p>
           <% end %>
 
-          <div class="mt-3 flex flex-wrap items-center gap-3 text-xs">
-            <%= link_to "Visit page", profile_path(profile.user), class: "text-fuchsia-400 hover:text-fuchsia-300" %>
-            <% if profile.document.include?("<style") %>
-              <%= button_to "Take its layout", copy_layout_profile_path(profile.user), method: :post,
-                    class: "text-zinc-400 hover:text-zinc-200" if signed_in? %>
-            <% end %>
-          </div>
+          <% if signed_in? && profile.document.include?("<style") %>
+            <div class="border-t border-zinc-800 px-4 py-3">
+              <%= button_to "Take its layout", copy_layout_profile_path(profile.user), method: :post, class: "label hover:text-zinc-200" %>
+            </div>
+          <% end %>
         </li>
       <% end %>
     </ul>
   <% else %>
-    <p class="rounded-lg border border-dashed border-zinc-800 p-6 text-sm text-zinc-500">
-      No pages have been written yet. Yours can be the first.
-    </p>
+    <div class="mt-8 border border-dashed border-zinc-800 p-8">
+      <p class="text-zinc-400">No pages have been written yet. Yours can be the first.</p>
+    </div>
   <% end %>
 </section>
 
-<section class="mt-12">
-  <div class="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-    <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-500">Layouts to wear</h2>
-    <%= link_to "All layouts", layouts_path, class: "text-xs text-fuchsia-400 hover:text-fuchsia-300" %>
-  </div>
+<section id="layouts">
+  <h2 class="rule">
+    <span class="label">Layouts to wear</span>
+    <%= link_to "All layouts", layouts_path, class: "label hover:text-zinc-200" %>
+  </h2>
 
-  <ul class="grid gap-4 sm:grid-cols-3">
+  <ul class="mt-8 grid gap-px border border-zinc-800 sm:grid-cols-3">
     <% @layouts.each do |layout| %>
-      <li class="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
+      <li class="panel p-4">
         <p class="font-semibold text-zinc-100"><%= layout.name %></p>
-        <p class="mt-1 text-xs text-zinc-500"><%= layout.description %></p>
-        <p class="mt-3 text-xs">
-          <%= link_to "Preview", layout_path(layout), class: "text-fuchsia-400 hover:text-fuchsia-300" %>
+        <p class="mt-2 text-sm text-zinc-500"><%= layout.description %></p>
+        <p class="mt-4">
+          <%= link_to "Preview", layout_path(layout), class: "btn" %>
         </p>
       </li>
     <% end %>
