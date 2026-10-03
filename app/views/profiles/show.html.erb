@@ -1,91 +1,74 @@
 <% content_for :title, "#{@user.display_name} — RiceSpace" %>
 <% content_for :og_type, "profile" %>
-<%# The description is what the owner said about themselves, falling back to the facts on the
-    page. It is read from stored fields rather than the markup, so what appears in a link
-    preview is never anything a page's stylesheet can change. %>
 <% content_for :description, [ @user.headline, @user.greeting, "A RiceSpace page by @#{@user.username}." ].compact_blank.first %>
 
-<%# The author's stylesheet, written after everything the site itself loads, so a
-    profile can restyle the whole page — the site's chrome included. This is the
-    part of the old profiles that was never a rich-text field, and it is why this
-    tag is here rather than scoped to the markup below. It is cleaned by PageCss,
-    and emitted raw — see ApplicationHelper#author_stylesheet for why that is both
-    necessary and safe. %>
 <%= author_stylesheet(@rendered.css) %>
 
 <%#
-  THE PAGE. Two halves, in this order and no other:
+  THE PAGE. MySpace-inspired layout, modern execution:
 
-    #showcase   the rice — the reason the page exists
-    #profile    what its owner wrote — a bare document, no column, no card
+  1. Contact table (hero) — picture, name, greeting, mood, member since
+  2. Top 8 friends — the social centerpiece
+  3. Comment wall — where people leave their mark
+  4. About me — the owner's blurbs
+  5. The rice showcase — the desktop
+  6. The profile markup — owner's HTML
+  7. Watch — stream links
+  8. Demos — demoscene releases
+  9. Hardware — physical builds
 
-  The names below are a contract with every stylesheet anybody has pasted in, from
-  before there was such a contract:
-
-    .contactTable   the name, greeting, mood and picture block
-    .profile-pic    the picture beside the name
-    .nametext       a display name (the page's, a friend's, a commenter's)
-    .orangetext15   a section heading
-    #profile        the markup the owner wrote, and only that
-    #showcase       the rice — .rice-frame, .rice-shot, .fact, .fact-value
-    .blurb          one titled block of the owner's text, with .blurb-title
-    .friendSpace    the friends list — .top8, .friend, .friendCount
-    .comments       comments and their form — .comment, .comment-body, .commentCount
-    .audio.player   the profile song, with audio.song
-
-  Renaming one is a breaking change for every layout an owner has already pasted in.
+  The names below are a contract with every stylesheet:
+  .contactTable, .profile-pic, .nametext, .orangetext15,
+  #profile, #showcase, .blurb, .friendSpace, .comments, .audio.player
 %>
 
-<header id="profile-header" class="mb-10 flex flex-wrap items-start justify-between gap-6">
-  <div class="contactTable flex items-start gap-5">
-    <div class="profile-pic">
+<%# ── 1. CONTACT TABLE (HERO) ───────────────────────────────────────────────────
+    The MySpace signature: picture on the left, everything about the person on the
+    right. Bigger than the old site's, because this is the first thing a visitor
+    reads and the thing the owner is showing off. %>
+<header id="profile-header" class="mb-12">
+  <div class="contactTable flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
+    <div class="profile-pic shrink-0">
       <% if @picture&.image&.attached? %>
         <%= image_tag @picture.image.variant(:display), alt: @user.display_name,
-              class: "h-28 w-28 border border-zinc-700 object-cover" %>
+              class: "h-40 w-40 border-2 border-zinc-600 object-cover" %>
       <% else %>
-        <div class="profile-pic-default flex h-28 w-28 items-center justify-center border border-dashed border-zinc-800">
+        <div class="profile-pic-default flex h-40 w-40 items-center justify-center border-2 border-dashed border-zinc-700">
           <span class="label">no pic</span>
         </div>
       <% end %>
     </div>
-
-    <div class="contactInfo">
-      <h1 class="nametext text-3xl font-semibold tracking-tight"><%= @user.display_name %></h1>
-      <p class="username label mt-2">@<%= @user.username %></p>
-
+    <div class="contactInfo min-w-0 flex-1">
+      <h1 class="nametext text-4xl font-bold tracking-tight"><%= @user.display_name %></h1>
+      <p class="username label mt-2 text-sm">@<%= @user.username %></p>
       <% if @user.greeting.present? %>
-        <p class="greeting mt-4 max-w-xl text-zinc-300"><%= @user.greeting %></p>
+        <p class="greeting mt-4 max-w-2xl text-lg text-zinc-200"><%= @user.greeting %></p>
       <% end %>
-
-      <% if @user.mood.present? || @user.headline.present? %>
-        <dl class="mt-5 flex flex-wrap gap-x-6 gap-y-3">
-          <% if @user.mood.present? %>
-            <div class="fact">
-              <dt class="label">mood</dt>
-              <dd class="fact-value"><%= @user.mood %></dd>
-            </div>
-          <% end %>
-          <% if @user.headline.present? %>
-            <div class="fact">
-              <dt class="label">headline</dt>
-              <dd class="fact-value"><%= @user.headline %></dd>
-            </div>
-          <% end %>
-        </dl>
-      <% end %>
-
-      <div class="mt-5 flex flex-wrap items-center gap-2">
+      <dl class="mt-6 flex flex-wrap gap-x-8 gap-y-4">
+        <% if @user.mood.present? %>
+          <div class="fact">
+            <dt class="label">mood</dt>
+            <dd class="fact-value text-base"><%= @user.mood %></dd>
+          </div>
+        <% end %>
+        <% if @user.headline.present? %>
+          <div class="fact">
+            <dt class="label">headline</dt>
+            <dd class="fact-value text-base"><%= @user.headline %></dd>
+          </div>
+        <% end %>
+        <div class="fact">
+          <dt class="label">member since</dt>
+          <dd class="fact-value text-base"><%= @user.created_at.strftime("%B %Y") %></dd>
+        </div>
+      </dl>
+      <div class="mt-6 flex flex-wrap items-center gap-3">
         <% if @can_edit %>
           <%= link_to "Edit page", studio_path, class: "btn" %>
           <%= link_to "Edit showcase", edit_showcase_path, class: "btn" %>
         <% end %>
-
-        <%# The rating. One number, moved by the two buttons beside it; the page does not
-            explain the arithmetic, because the number is the thing and how it is made is
-            not the visitor's business. %>
         <div class="rating flex items-center gap-2">
-          <span class="rating-value fact-value text-lg text-amber-300" title="rating"><%= @score %></span>
-
+          <span class="rating-value fact-value text-xl text-amber-300" title="rating"><%= @score %></span>
           <% if signed_in? && !@can_edit %>
             <%= button_to (@my_rating == Rating::LIKE ? "★ liked" : "☆ like"),
                   rate_profile_path(@user, score: Rating::LIKE),
@@ -97,9 +80,6 @@
             <%= link_to "Sign in to rate this page", new_session_path, class: "btn" %>
           <% end %>
         </div>
-
-        <%# How a layout spread the first time: you found a page you liked and took its
-            stylesheet. Signed out, the offer is to sign in and take it. %>
         <% if @rendered.css.present? %>
           <% if signed_in? && current_user != @user %>
             <%= button_to "Take this layout", copy_layout_profile_path(@user), method: :post, class: "btn" %>
@@ -110,15 +90,10 @@
       </div>
     </div>
   </div>
-
-  <%# The profile song, set as a fact rather than a widget: it is one line of
-      information and one control. Native audio because it is one track and the page
-      plays it, with `preload: "none"` so opening a page does not download somebody's
-      song before they ask for it. %>
   <% if @profile.song? %>
-    <div class="audio player w-full border border-zinc-800 p-3 sm:w-auto sm:max-w-sm">
+    <div class="audio player mt-6 border border-zinc-700 bg-zinc-900 p-4">
       <p class="label">profile song</p>
-      <p class="song-title mt-1 truncate text-sm text-zinc-200">
+      <p class="song-title mt-1 truncate text-base text-zinc-100">
         <%= @profile.song_title.presence || File.basename(URI.parse(@profile.song_url).path) %>
       </p>
       <audio class="song mt-3 w-full" controls preload="none" src="<%= @profile.song_url %>"></audio>
@@ -126,12 +101,109 @@
   <% end %>
 </header>
 
-<%# ── THE SHOWCASE ────────────────────────────────────────────────────────────────
-    The rice, and the main event. It is the loudest thing on the page — a hard offset
-    frame around the screenshot, the facts of the setup ruled underneath, the
-    description in the owner's own markup — because a page is what somebody wrote but
-    a rice is what they built, and this site exists for the second one. Everything a
-    visitor needs to read it is here and nothing is behind a click. %>
+<%# ── 2. TOP 8 FRIENDS ───────────────────────────────────────────────────────────
+    The social centerpiece. Ranked grid, first eight get the amber border — the
+    owner's order, which is what made the list worth ordering at all. %>
+<section id="friends" class="friendSpace mb-12">
+  <h2 class="orangetext15 rule">
+    <span class="label">friends</span>
+    <span class="label friendCount text-zinc-400"><%= @friend_count %></span>
+  </h2>
+  <% if @friends.any? %>
+    <ul class="top8 mt-5 grid grid-cols-4 gap-4 sm:grid-cols-8">
+      <% @friends.each_with_index do |friend, index| %>
+        <li class="friend<%= " top8-slot" if index < ProfilesController::TOP_EIGHT %>">
+          <%= link_to profile_path(friend), class: "group block" do %>
+            <% if friend.profile_picture&.image&.attached? %>
+              <%= image_tag friend.profile_picture.image.variant(:thumb), alt: friend.display_name,
+                    class: "block aspect-square w-full border border-zinc-700 object-cover" %>
+            <% else %>
+              <span class="flex aspect-square w-full items-center justify-center border border-dashed border-zinc-700">
+                <span class="label"><%= friend.username.truncate(8) %></span>
+              </span>
+            <% end %>
+            <span class="nametext mt-2 block truncate text-sm text-zinc-300 group-hover:text-zinc-100">
+              <%= friend.display_name.truncate(16) %>
+            </span>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+    <% if @friend_count > @friends.size %>
+      <p class="label mt-4">and <%= @friend_count - @friends.size %> more</p>
+    <% end %>
+  <% else %>
+    <p class="mt-4 text-sm text-zinc-500">No friends listed yet.</p>
+  <% end %>
+  <% if @can_edit %>
+    <%= form_with url: friendships_path, class: "mt-5 flex flex-wrap items-center gap-2" do |form| %>
+      <%= form.text_field :username, placeholder: "their username", required: true, class: "field w-48" %>
+      <%= form.submit "Add friend", class: "btn" %>
+    <% end %>
+  <% end %>
+</section>
+
+<%# ── 3. COMMENT WALL ────────────────────────────────────────────────────────────
+    The other half of the social centerpiece. A page's wall: you write on your own
+    page and on anybody else's. Everything below is a comment somebody left with
+    their name on it. %>
+<section id="comments" class="comments mb-12">
+  <h2 class="orangetext15 rule">
+    <span class="label">comments</span>
+    <span class="label commentCount text-zinc-400"><%= @user.comments.count %></span>
+  </h2>
+  <p class="label mt-2">
+    <%= @can_edit ? "your wall — write on it, or write on anyone else's" : "leave your mark on @#{@user.username}'s wall" %>
+  </p>
+  <% if signed_in? %>
+    <%= form_with model: @comment, url: profile_comments_path(@user.username), id: "comment-form", class: "mt-5 max-w-2xl" do |form| %>
+      <div class="flex flex-wrap items-start gap-2">
+        <%= form.text_area :body, rows: 3, required: true, placeholder: "write on @#{@user.username}'s wall as @#{current_user.username}", class: "field" %>
+        <%= form.submit "Post", class: "btn" %>
+      </div>
+    <% end %>
+  <% else %>
+    <p class="mt-5 text-sm text-zinc-500">
+      <%= link_to "Sign in", new_session_path, class: "underline hover:text-zinc-200" %> to post on this wall.
+    </p>
+  <% end %>
+  <% if @comments.any? %>
+    <ul class="mt-6 space-y-px border border-zinc-800">
+      <% @comments.each do |comment| %>
+        <li class="comment bg-zinc-950 p-4">
+          <div class="flex flex-wrap items-baseline justify-between gap-2">
+            <span class="nametext text-sm text-zinc-200"><%= comment.displayed_author %></span>
+            <span class="label"><%= time_ago_in_words(comment.created_at) %> ago</span>
+          </div>
+          <p class="comment-body mt-2 whitespace-pre-wrap text-sm text-zinc-300"><%= comment.body %></p>
+          <% if signed_in? && (current_user == @user || current_user == comment.author) %>
+            <p class="mt-2 text-right">
+              <%= button_to "Remove", comment_path(comment), method: :delete, class: "label hover:text-red-300" %>
+            </p>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="mt-4 text-sm text-zinc-500">Nothing on this wall yet.</p>
+  <% end %>
+</section>
+
+<%# ── 4. ABOUT ME ────────────────────────────────────────────────────────────────
+    The owner's own words, in titled blocks. %>
+<% if @blurbs.any? %>
+  <section id="blurbs" class="mb-12">
+    <% @blurbs.each do |blurb| %>
+      <article class="blurb mb-6 max-w-3xl" id="blurb-<%= blurb.id %>">
+        <h2 class="blurb-title orangetext15 rule label"><%= blurb.title %></h2>
+        <div class="blurb-body mt-3 text-zinc-300"><%= blurb.rendered_body %></div>
+      </article>
+    <% end %>
+  </section>
+<% end %>
+
+<%# ── 5. THE RICE SHOWCASE ──────────────────────────────────────────────────────
+    The desktop. The reason the site exists. %>
 <section id="showcase" class="showcase mb-14">
   <% if @showcase&.filled? %>
     <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -145,7 +217,6 @@
         <p class="label"><%= pluralize(@showcase.shots.size, "shot") %></p>
       <% end %>
     </div>
-
     <% if @showcase.cover %>
       <figure class="rice-frame">
         <%= image_tag @showcase.cover.image.variant(:display),
@@ -158,9 +229,6 @@
         <% end %>
       </figure>
     <% end %>
-
-    <%# The other shots, as a strip of stills rather than a gallery: no lightbox, no
-        carousel, no script. The page is a page. %>
     <% others = @showcase.shots.drop(1).select { |shot| shot.image.attached? } %>
     <% if others.any? %>
       <ul class="mt-4 grid grid-cols-2 gap-px border border-zinc-800 sm:grid-cols-3 lg:grid-cols-4">
@@ -175,11 +243,9 @@
         <% end %>
       </ul>
     <% end %>
-
     <% if @showcase.summary.present? %>
       <p class="rice-summary mt-6 max-w-3xl text-lg leading-relaxed text-zinc-300"><%= @showcase.summary %></p>
     <% end %>
-
     <% if @showcase.facts.any? %>
       <dl class="mt-7 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
         <% @showcase.facts.each do |label, value| %>
@@ -190,7 +256,6 @@
         <% end %>
       </dl>
     <% end %>
-
     <% if @showcase.details.present? %>
       <div id="showcase-details" class="showcase-details mt-7 max-w-3xl border-t border-zinc-800 pt-5 text-zinc-300">
         <%= @showcase.rendered_details %>
@@ -209,10 +274,10 @@
   <% end %>
 </section>
 
-<%# ── THE PAGE ITSELF ─────────────────────────────────────────────────────────────
+<%# ── 6. THE PROFILE MARKUP ──────────────────────────────────────────────────────
     What the owner wrote, in the author's own stylesheet. No column around it and no
-    card of ours: the page's own rules decide what it looks like, including whether the
-    site's chrome is still here. %>
+    card of ours: the page's own rules decide what it looks like, including whether
+    the site's chrome is still here. %>
 <article id="profile" class="profile-page mb-12">
   <% if @profile.document.blank? %>
     <div class="border border-dashed border-zinc-800 p-8">
@@ -229,28 +294,15 @@
   <% end %>
 </article>
 
-<% if @blurbs.any? %>
-  <section id="blurbs" class="mb-12">
-    <% @blurbs.each do |blurb| %>
-      <article class="blurb mb-6 max-w-3xl" id="blurb-<%= blurb.id %>">
-        <h2 class="blurb-title orangetext15 rule label"><%= blurb.title %></h2>
-        <div class="blurb-body mt-3 text-zinc-300"><%= blurb.rendered_body %></div>
-      </article>
-    <% end %>
-  </section>
-<% end %>
-
-<%# ── WATCH ───────────────────────────────────────────────────────────────────────
-    The videos and streams. Nothing is hosted here: each is a link, embedded from the
-    service that holds it. An embed is a frame, so a page's own stylesheet cannot touch
-    what is inside it — which is the honest boundary for somebody else's player. %>
+<%# ── 7. WATCH ───────────────────────────────────────────────────────────────────
+    The videos and streams. Nothing is hosted here: each is a link, embedded from
+    the service that holds it. %>
 <% if @stream_links.any? %>
   <section id="watch" class="mb-12">
     <h2 class="orangetext15 rule">
       <span class="label">watch</span>
       <span class="label text-zinc-600"><%= @stream_links.map(&:platform_label).join(" · ") %></span>
     </h2>
-
     <ul class="mt-5 grid gap-6 lg:grid-cols-2">
       <% @stream_links.each do |link| %>
         <% frame = link.embed %>
@@ -278,18 +330,15 @@
   </section>
 <% end %>
 
-<%# ── DEMOS ───────────────────────────────────────────────────────────────────────
-    The demoscene. Its own category because a demo is not a video: the group, the party,
-    the year, the platform and the placing are the entry, and the link is how you watch
-    it. A demo whose link is a player is embedded; one that links to a catalogue is a
-    link, which is what most of them are. %>
+<%# ── 8. DEMOS ───────────────────────────────────────────────────────────────────
+    The demoscene. Its own category because a demo is not a video: the group, the
+    party, the year, the platform and the placing are the entry. %>
 <% if @demos.any? %>
   <section id="demos" class="mb-12">
     <h2 class="orangetext15 rule">
       <span class="label">demos</span>
       <span class="label text-zinc-600"><%= pluralize(@demos.size, "release") %></span>
     </h2>
-
     <ul class="mt-5 grid gap-6 lg:grid-cols-2">
       <% @demos.each do |demo| %>
         <% frame = demo.embed %>
@@ -303,7 +352,6 @@
                     referrerpolicy="strict-origin-when-cross-origin"
                     sandbox="allow-scripts allow-same-origin allow-presentation allow-popups"></iframe>
           <% end %>
-
           <div class="p-4">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
               <h3 class="demo-title nametext text-lg font-semibold text-zinc-100"><%= demo.title %></h3>
@@ -311,7 +359,6 @@
                 <span class="demo-placing rice-label"><%= demo.placing_note %></span>
               <% end %>
             </div>
-
             <% if demo.group_name.present? || demo.release_note %>
               <p class="demo-credit mt-2 text-sm text-zinc-400">
                 <%= demo.group_name %>
@@ -319,7 +366,6 @@
                 <%= demo.release_note %>
               </p>
             <% end %>
-
             <% facts = [ [ "category", demo.category ], [ "platform", demo.platform ] ].select { |_, v| v.present? } %>
             <% if facts.any? %>
               <dl class="mt-4 flex flex-wrap gap-x-6 gap-y-3">
@@ -331,11 +377,9 @@
                 <% end %>
               </dl>
             <% end %>
-
             <% if demo.watch_note.present? %>
               <p class="mt-4 text-sm text-zinc-500"><%= demo.watch_note %></p>
             <% end %>
-
             <% if demo.url.present? %>
               <p class="mt-4">
                 <a class="btn" href="<%= demo.url %>" rel="noopener noreferrer nofollow" target="_blank">
@@ -350,17 +394,15 @@
   </section>
 <% end %>
 
-<%# ── HARDWARE ────────────────────────────────────────────────────────────────────
-    Physical things: builds, racks, cooling, the closet. The photos are the evidence, so
-    they lead; the facts are what is in it and how it is cooled, because those are what
-    anybody asks. A page can carry several, which is different from the rice. %>
+<%# ── 9. HARDWARE ───────────────────────────────────────────────────────────────
+    Physical things: builds, racks, cooling, the closet. The photos are the evidence,
+    so they lead; the facts are what is in it and how it is cooled. %>
 <% if @builds.any? %>
   <section id="hardware" class="mb-12">
     <h2 class="orangetext15 rule">
       <span class="label">hardware</span>
       <span class="label text-zinc-600"><%= pluralize(@builds.size, "build") %></span>
     </h2>
-
     <ul class="mt-5 grid gap-8 lg:grid-cols-2">
       <% @builds.each do |build| %>
         <li class="build panel">
@@ -377,14 +419,11 @@
               <% end %>
             </figure>
           <% end %>
-
           <div class="p-4">
             <h3 class="build-title nametext text-lg font-semibold text-zinc-100"><%= build.title %></h3>
-
             <% if build.summary.present? %>
               <p class="mt-2 text-sm text-zinc-400"><%= build.summary %></p>
             <% end %>
-
             <% if build.facts.any? %>
               <dl class="mt-4 flex flex-wrap gap-x-6 gap-y-3">
                 <% build.facts.each do |label, value| %>
@@ -395,12 +434,9 @@
                 <% end %>
               </dl>
             <% end %>
-
             <% if build.details.present? %>
               <div class="build-details mt-4 text-sm text-zinc-300"><%= build.rendered_details %></div>
             <% end %>
-
-            <%# The other photographs, as stills rather than a gallery. %>
             <% others = build.photos.drop(cover ? 1 : 0).select { |photo| photo.image.attached? } %>
             <% if others.any? %>
               <ul class="mt-4 grid grid-cols-3 gap-px border border-zinc-800">
@@ -418,95 +454,6 @@
     </ul>
   </section>
 <% end %>
-
-<section id="friends" class="friendSpace mb-12">
-  <h2 class="orangetext15 rule">
-    <span class="label">friends</span>
-    <span class="label friendCount text-zinc-400"><%= @friend_count %></span>
-  </h2>
-
-  <% if @friends.any? %>
-    <ul class="top8 mt-5 grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6">
-      <% @friends.each_with_index do |friend, index| %>
-        <li class="friend<%= " top8-slot" if index < ProfilesController::TOP_EIGHT %>">
-          <%= link_to profile_path(friend), class: "group block border-t-2 pt-2 #{index < ProfilesController::TOP_EIGHT ? "border-amber-400" : "border-zinc-800"} hover:border-zinc-500" do %>
-            <% if friend.profile_picture&.image&.attached? %>
-              <%= image_tag friend.profile_picture.image.variant(:thumb), alt: friend.display_name,
-                    class: "block aspect-square w-full border border-zinc-800 object-cover" %>
-            <% else %>
-              <span class="flex aspect-square w-full items-center justify-center border border-dashed border-zinc-800">
-                <span class="label"><%= friend.username.truncate(8) %></span>
-              </span>
-            <% end %>
-            <span class="nametext mt-2 block truncate text-sm text-zinc-300 group-hover:text-zinc-100">
-              <%= friend.display_name.truncate(16) %>
-            </span>
-          <% end %>
-        </li>
-      <% end %>
-    </ul>
-    <% if @friend_count > @friends.size %>
-      <p class="label mt-4">and <%= @friend_count - @friends.size %> more</p>
-    <% end %>
-  <% else %>
-    <p class="mt-4 text-sm text-zinc-500">No friends listed yet.</p>
-  <% end %>
-
-  <% if @can_edit %>
-    <%= form_with url: friendships_path, class: "mt-5 flex flex-wrap items-center gap-2" do |form| %>
-      <%= form.text_field :username, placeholder: "their username", required: true, class: "field w-48" %>
-      <%= form.submit "Add friend", class: "btn" %>
-    <% end %>
-  <% end %>
-</section>
-
-<section id="comments" class="comments mb-12">
-  <h2 class="orangetext15 rule">
-    <span class="label">comments</span>
-    <span class="label commentCount text-zinc-400"><%= @user.comments.count %></span>
-  </h2>
-
-  <%# A page's wall. You write on your own page and on anybody else's — there is no
-      feed and nothing arrives here on its own, which is what makes it a wall rather
-      than a stream. Everything below is a comment somebody left with their name on it. %>
-  <p class="label mt-2">
-    <%= @can_edit ? "your wall — write on it, or write on anyone else’s" : "leave your mark on @#{@user.username}’s wall" %>
-  </p>
-
-  <% if signed_in? %>
-    <%= form_with model: @comment, url: profile_comments_path(@user.username), id: "comment-form", class: "mt-5 max-w-2xl" do |form| %>
-      <div class="flex flex-wrap items-start gap-2">
-        <%= form.text_area :body, rows: 3, required: true, placeholder: "write on @#{@user.username}’s wall as @#{current_user.username}", class: "field" %>
-        <%= form.submit "Post", class: "btn" %>
-      </div>
-    <% end %>
-  <% else %>
-    <p class="mt-5 text-sm text-zinc-500">
-      <%= link_to "Sign in", new_session_path, class: "underline hover:text-zinc-200" %> to post on this wall.
-    </p>
-  <% end %>
-
-  <% if @comments.any? %>
-    <ul class="mt-6 space-y-px border border-zinc-800">
-      <% @comments.each do |comment| %>
-        <li class="comment bg-zinc-950 p-4">
-          <div class="flex flex-wrap items-baseline justify-between gap-2">
-            <span class="nametext text-sm text-zinc-200"><%= comment.displayed_author %></span>
-            <span class="label"><%= time_ago_in_words(comment.created_at) %> ago</span>
-          </div>
-          <p class="comment-body mt-2 whitespace-pre-wrap text-sm text-zinc-300"><%= comment.body %></p>
-          <% if signed_in? && (current_user == @user || current_user == comment.author) %>
-            <p class="mt-2 text-right">
-              <%= button_to "Remove", comment_path(comment), method: :delete, class: "label hover:text-red-300" %>
-            </p>
-          <% end %>
-        </li>
-      <% end %>
-    </ul>
-  <% else %>
-    <p class="mt-4 text-sm text-zinc-500">Nothing on this wall yet.</p>
-  <% end %>
-</section>
 
 <p id="profile-stamp" class="label">
   markup by @<%= @user.username %>, last changed <%= time_ago_in_words(@profile.updated_at) %> ago

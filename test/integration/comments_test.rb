@@ -61,7 +61,7 @@ class CommentTest < ActionDispatch::IntegrationTest
     get profile_path(@owner)
 
     assert_match(/id="comment-form"/, response.body)
-    assert_match "write on @vittorio’s wall as @cordelia", response.body
+    assert_match "write on @vittorio&#39;s wall as @cordelia", response.body
   end
 
   private

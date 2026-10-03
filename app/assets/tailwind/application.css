@@ -179,6 +179,72 @@
   .page-card:hover {
     border-color: var(--color-zinc-700);
   }
+
+  /* ── MYSPACE PIVOT ──────────────────────────────────────────────────────────
+     The profile page is the social centerpiece. These rules give it the
+     information density and visual hierarchy of the original MySpace while
+     keeping the modern sharp aesthetic. */
+
+  /* The contact table is the hero — bigger picture, more presence. */
+  .contactTable {
+    border: 1px solid var(--color-zinc-700);
+    background: var(--color-zinc-900);
+    padding: 1.5rem;
+  }
+  .contactTable .profile-pic img,
+  .contactTable .profile-pic-default {
+    border-width: 2px;
+    border-color: var(--color-zinc-500);
+  }
+  .contactTable .nametext {
+    font-size: 2.25rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .contactTable .greeting {
+    font-size: 1.125rem;
+    color: var(--color-zinc-200);
+  }
+
+  /* Top 8 friends — the social centerpiece. */
+  .friendSpace .top8 {
+    gap: 0.75rem;
+  }
+  .friendSpace .friend {
+    border: 1px solid var(--color-zinc-800);
+    background: var(--color-zinc-900);
+    padding: 0.5rem;
+  }
+  .friendSpace .friend:hover {
+    border-color: var(--color-zinc-600);
+  }
+  .friendSpace .friend.top8-slot {
+    border-color: var(--color-amber-400);
+  }
+  .friendSpace .friend .nametext {
+    font-size: 0.75rem;
+  }
+
+  /* Comment wall — the other half of the social centerpiece. */
+  .comments .comment {
+    border: 1px solid var(--color-zinc-800);
+    background: var(--color-zinc-900);
+  }
+  .comments .comment:hover {
+    border-color: var(--color-zinc-700);
+  }
+  .comments .comment .nametext {
+    color: var(--color-amber-300);
+  }
+
+  /* The profile song — a first-class element. */
+  .audio.player {
+    border-color: var(--color-zinc-600);
+    background: var(--color-zinc-900);
+  }
+  .audio.player .song-title {
+    color: var(--color-zinc-100);
+  }
 }
 
 @layer base {
