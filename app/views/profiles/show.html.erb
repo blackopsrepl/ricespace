@@ -327,6 +327,75 @@
   </section>
 <% end %>
 
+<%# ── HARDWARE ────────────────────────────────────────────────────────────────────
+    Physical things: builds, racks, cooling, the closet. The photos are the evidence, so
+    they lead; the facts are what is in it and how it is cooled, because those are what
+    anybody asks. A page can carry several, which is different from the rice. %>
+<% if @builds.any? %>
+  <section id="hardware" class="mb-12">
+    <h2 class="orangetext15 rule">
+      <span class="label">hardware</span>
+      <span class="label text-zinc-600"><%= pluralize(@builds.size, "build") %></span>
+    </h2>
+
+    <ul class="mt-5 grid gap-8 lg:grid-cols-2">
+      <% @builds.each do |build| %>
+        <li class="build panel">
+          <% cover = build.cover %>
+          <% if cover %>
+            <figure class="border-b border-zinc-800">
+              <%= image_tag cover.image.variant(:display),
+                    alt: cover.caption.presence || build.title,
+                    class: "block aspect-[3/2] w-full object-cover" %>
+              <% if cover.caption.present? %>
+                <figcaption class="border-t border-zinc-800 px-3 py-2">
+                  <span class="label"><%= cover.caption %></span>
+                </figcaption>
+              <% end %>
+            </figure>
+          <% end %>
+
+          <div class="p-4">
+            <h3 class="build-title nametext text-lg font-semibold text-zinc-100"><%= build.title %></h3>
+
+            <% if build.summary.present? %>
+              <p class="mt-2 text-sm text-zinc-400"><%= build.summary %></p>
+            <% end %>
+
+            <% if build.facts.any? %>
+              <dl class="mt-4 flex flex-wrap gap-x-6 gap-y-3">
+                <% build.facts.each do |label, value| %>
+                  <div class="fact">
+                    <dt class="label"><%= label %></dt>
+                    <dd class="fact-value" title="<%= value %>"><%= value %></dd>
+                  </div>
+                <% end %>
+              </dl>
+            <% end %>
+
+            <% if build.details.present? %>
+              <div class="build-details mt-4 text-sm text-zinc-300"><%= build.rendered_details %></div>
+            <% end %>
+
+            <%# The other photographs, as stills rather than a gallery. %>
+            <% others = build.photos.drop(cover ? 1 : 0).select { |photo| photo.image.attached? } %>
+            <% if others.any? %>
+              <ul class="mt-4 grid grid-cols-3 gap-px border border-zinc-800">
+                <% others.each do |photo| %>
+                  <li>
+                    <%= image_tag photo.image.variant(:thumb), alt: photo.caption.presence || "",
+                          class: "block aspect-[8/5] w-full object-cover" %>
+                  </li>
+                <% end %>
+              </ul>
+            <% end %>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+<% end %>
+
 <section id="friends" class="friendSpace mb-12">
   <h2 class="orangetext15 rule">
     <span class="label">friends</span>

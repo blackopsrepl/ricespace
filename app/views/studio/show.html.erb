@@ -243,6 +243,105 @@
         <div><%= form.submit "Add demo", class: "btn" %></div>
       <% end %>
 
+      <h3 class="label mt-10">Hardware</h3>
+      <p class="mt-4 max-w-lg text-sm text-zinc-500">
+        Physical things you built: a desktop, a rack, a cooling setup, the closet nobody
+        should see. The photos are the evidence, so a build is a photo and the facts about
+        it. You can list more than one.
+      </p>
+
+      <% if @builds.any? %>
+        <ol class="mt-5 grid gap-px border border-zinc-800">
+          <% @builds.each do |build| %>
+            <li class="bg-zinc-950 p-3">
+              <%= form_with model: build, class: "grid gap-3" do |form| %>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <label class="block">
+                    <span class="label">title</span>
+                    <%= form.text_field :title, required: true, maxlength: Build::MAX_TITLE_LENGTH, class: "field mt-1" %>
+                  </label>
+                  <label class="block">
+                    <span class="label">kind</span>
+                    <%= form.select :kind, Build::KINDS.map { |key, label| [ label, key ] }, { include_blank: "—" },
+                          class: "field mt-1" %>
+                  </label>
+                </div>
+                <label class="block">
+                  <span class="label">summary</span>
+                  <%= form.text_field :summary, maxlength: 200, class: "field mt-1" %>
+                </label>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <label class="block">
+                    <span class="label">what is in it</span>
+                    <%= form.text_field :specs, maxlength: Build::MAX_LINE_LENGTH,
+                          placeholder: "Ryzen 9, 128 GB, 4× 18 TB", class: "field mt-1" %>
+                  </label>
+                  <label class="block">
+                    <span class="label">cooling</span>
+                    <%= form.text_field :cooling, maxlength: Build::MAX_LINE_LENGTH,
+                          placeholder: "Noctua NH-D15, 6 case fans", class: "field mt-1" %>
+                  </label>
+                </div>
+                <label class="block">
+                  <span class="label">details</span>
+                  <%= form.text_area :details, rows: 3,
+                        placeholder: "Why it is the way it is. HTML and CSS allowed — no JavaScript.",
+                        class: "field mt-1" %>
+                </label>
+                <div><%= form.submit "Save", class: "btn" %></div>
+              <% end %>
+
+              <% if build.photos.any? %>
+                <ul class="mt-3 flex flex-wrap gap-2">
+                  <% build.photos.each do |photo| %>
+                    <li class="flex items-center gap-2 border border-zinc-800 pr-2">
+                      <% if photo.image.attached? %>
+                        <%= image_tag photo.image.variant(:thumb), alt: "",
+                              class: "h-12 w-16 object-cover" %>
+                      <% end %>
+                      <span class="label"><%= photo.caption.presence || "photo" %></span>
+                      <%= button_to "×", remove_photo_build_path(build, photo_id: photo.id), method: :delete,
+                            class: "btn px-2 py-1 hover:text-red-300" %>
+                    </li>
+                  <% end %>
+                </ul>
+              <% end %>
+
+              <%= form_with url: add_photo_build_path(build), multipart: true, class: "mt-3 grid gap-2 sm:grid-cols-2" do |form| %>
+                <%= form.file_field :photo, accept: "image/*", required: true,
+                      class: "field file:mr-3 file:border file:border-zinc-700 file:bg-zinc-900 file:px-2 file:py-1 file:text-zinc-200" %>
+                <%= form.text_field :caption, placeholder: "caption (optional)",
+                      maxlength: BuildPhoto::MAX_CAPTION_LENGTH, class: "field" %>
+                <div class="sm:col-span-2"><%= form.submit "Add photo", class: "btn" %></div>
+              <% end %>
+
+              <%= button_to "Remove build", build_path(build), method: :delete, class: "label mt-3 hover:text-red-300" %>
+            </li>
+          <% end %>
+        </ol>
+      <% else %>
+        <p class="mt-5 text-sm text-zinc-500">No hardware listed yet.</p>
+      <% end %>
+
+      <%= form_with scope: :build, url: builds_path, multipart: true, class: "mt-5 grid gap-3" do |form| %>
+        <div class="grid gap-3 sm:grid-cols-2">
+          <%= form.text_field :title, placeholder: "title", required: true,
+                maxlength: Build::MAX_TITLE_LENGTH, class: "field" %>
+          <%= form.select :kind, Build::KINDS.map { |key, label| [ label, key ] }, { prompt: "kind" }, class: "field" %>
+          <%= form.text_field :specs, placeholder: "what is in it", maxlength: Build::MAX_LINE_LENGTH, class: "field" %>
+          <%= form.text_field :cooling, placeholder: "cooling", maxlength: Build::MAX_LINE_LENGTH, class: "field" %>
+        </div>
+        <%= form.text_field :summary, placeholder: "one line about it", maxlength: 200, class: "field" %>
+        <%= form.text_area :details, rows: 3, placeholder: "details (HTML and CSS allowed)", class: "field" %>
+        <div class="grid gap-2 sm:grid-cols-2">
+          <%= form.file_field :photo, accept: "image/*",
+                class: "field file:mr-3 file:border file:border-zinc-700 file:bg-zinc-900 file:px-2 file:py-1 file:text-zinc-200" %>
+          <%= form.text_field :photo_caption, placeholder: "photo caption (optional)",
+                maxlength: BuildPhoto::MAX_CAPTION_LENGTH, class: "field" %>
+        </div>
+        <div><%= form.submit "Add build", class: "btn" %></div>
+      <% end %>
+
       <h3 class="label mt-10">Profile song</h3>
       <p class="mt-4 max-w-lg text-sm text-zinc-500">
         One track, played on your page as <code class="text-zinc-300">.audio.player</code>. It is

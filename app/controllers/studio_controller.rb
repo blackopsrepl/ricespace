@@ -70,6 +70,7 @@ class StudioController < ApplicationController
       @blurbs = current_user.blurbs.in_order
       @stream_links = current_user.stream_links.order(:created_at)
       @demos = current_user.demos.in_order
+      @builds = current_user.builds.in_order.includes(photos: { image_attachment: :blob })
       @friendships = current_user.friendships.in_order.includes(:friend)
       @friends = @friendships.map(&:friend)
     end

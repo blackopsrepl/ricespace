@@ -34,6 +34,8 @@ class ProfilesController < ApplicationController
     @stream_links = @user.stream_links.order(:created_at)
     # The demoscene demos, which are their own category: the release facts are the entry.
     @demos = @user.demos.in_order
+    # The hardware, which is a physical thing photographed rather than a desktop.
+    @builds = @user.builds.in_order
     @comment = Comment.new
     @can_edit = signed_in? && current_user == @user
   end

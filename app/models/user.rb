@@ -38,6 +38,9 @@ class User < ApplicationRecord
   # The demoscene demos listed on this account's page, with the release facts.
   has_many :demos, dependent: :destroy
 
+  # The hardware on this account's page: physical builds, with their photos.
+  has_many :builds, dependent: :destroy
+
   # Where this account appears on somebody else's page. Destroying the account
   # removes it from their lists rather than leaving a hole.
   has_many :reverse_friendships, class_name: "Friendship", foreign_key: :friend_id, dependent: :destroy

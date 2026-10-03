@@ -41,6 +41,14 @@ Rails.application.routes.draw do
 
   # The demoscene demos on a page: its own category, with its own facts.
   resources :demos, only: [ :create, :update, :destroy ]
+
+  # The hardware on a page: a build, its photos, and what is in it.
+  resources :builds, only: [ :create, :update, :destroy ] do
+    member do
+      post :add_photo
+      delete "photos/:photo_id", action: :remove_photo, as: :remove_photo
+    end
+  end
   resources :blurbs, only: [ :create, :update, :destroy ] do
     member { patch :move }
   end

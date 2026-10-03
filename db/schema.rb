@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_070300) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_070400) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -59,6 +59,29 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_070300) do
     t.datetime "updated_at", null: false
     t.index ["user_id", "position"], name: "index_blurbs_on_user_id_and_position"
     t.index ["user_id"], name: "index_blurbs_on_user_id"
+  end
+
+  create_table "build_photos", force: :cascade do |t|
+    t.integer "build_id", null: false
+    t.string "caption"
+    t.integer "position", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["build_id", "position"], name: "index_build_photos_on_build_id_and_position"
+    t.index ["build_id"], name: "index_build_photos_on_build_id"
+  end
+
+  create_table "builds", force: :cascade do |t|
+    t.integer "user_id", null: false
+    t.string "title", null: false
+    t.string "kind"
+    t.string "summary"
+    t.text "details", default: "", null: false
+    t.string "specs"
+    t.string "cooling"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_builds_on_user_id"
   end
 
   create_table "comments", force: :cascade do |t|
@@ -176,6 +199,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_070300) do
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "agent_tokens", "users"
   add_foreign_key "blurbs", "users"
+  add_foreign_key "build_photos", "builds"
+  add_foreign_key "builds", "users"
   add_foreign_key "comments", "users"
   add_foreign_key "comments", "users", column: "author_id"
   add_foreign_key "demos", "users"
