@@ -61,7 +61,17 @@ jobs:
 
       - name: musl toolchain
         if: contains(matrix.target, 'musl')
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+          # Cross-compiling needs more than musl-tools: the aarch64 build links `ring`,
+          # which looks for a target-prefixed compiler and fails with "No such file or
+          # directory" for `aarch64-linux-musl-gcc`. The gcc package provides it plus the
+          # prefixed binutils, so the cross build has something to link with.
+          if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+          fi
 
       - run: cargo build --release --manifest-path cli/Cargo.toml --target ${{ matrix.target }}
 
