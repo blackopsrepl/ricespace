@@ -2,6 +2,7 @@
 
 # One picture of a rice, with the line that says what it is showing.
 class ShowcaseShot < ApplicationRecord
+  include CountedTowardStorage
   MAX_BYTES = 8.megabytes
   MAX_CAPTION_LENGTH = 140
 
@@ -34,6 +35,10 @@ class ShowcaseShot < ApplicationRecord
   end
 
   private
+    def storage_owner
+      showcase&.user
+    end
+
     def image_is_an_image
       return unless image.attached?
 

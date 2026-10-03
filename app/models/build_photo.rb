@@ -2,6 +2,7 @@
 
 # One photograph of a physical build, with the line that says what it is showing.
 class BuildPhoto < ApplicationRecord
+  include CountedTowardStorage
   MAX_BYTES = 8.megabytes
   MAX_CAPTION_LENGTH = 140
 
@@ -20,6 +21,10 @@ class BuildPhoto < ApplicationRecord
   before_create :append_to_end
 
   private
+    def storage_owner
+      build&.user
+    end
+
     def image_is_an_image
       return unless image.attached?
 

@@ -7,6 +7,7 @@
 # that step. The variants are the sizes the page's anatomy actually uses — the
 # picture beside the name, and the thumbnail on a friends list or a comment.
 class ProfilePicture < ApplicationRecord
+  include CountedTowardStorage
   # A profile picture is an image, not a payload. This bounds the upload before
   # any processing happens.
   MAX_BYTES = 5.megabytes
@@ -22,6 +23,10 @@ class ProfilePicture < ApplicationRecord
   validate :image_is_an_image
 
   private
+    def storage_owner
+      user
+    end
+
     def image_is_an_image
       return unless image.attached?
 

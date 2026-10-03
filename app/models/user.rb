@@ -26,6 +26,12 @@ class User < ApplicationRecord
   # Long enough that a profile page is not the softest target in the account.
   MINIMUM_PASSWORD_LENGTH = 12
 
+  # How much one account may keep in pictures, across everything it has uploaded. The one
+  # number: the per-file ceilings on the models bound a single upload, and this bounds the
+  # account, so the disk is not shared out by whoever uploads most. Every upload path checks
+  # it through `over_storage_limit?` — see `CountedTowardStorage`.
+  STORAGE_LIMIT = 200.megabytes
+
   has_one :profile, dependent: :destroy
   has_one :profile_picture, dependent: :destroy
   has_one :showcase, dependent: :destroy
@@ -101,6 +107,42 @@ class User < ApplicationRecord
   # The name shown for this account anywhere the display name is not set.
   def display_name
     name.presence || username
+  end
+
+  # Every byte of picture this account is storing. Sums the account's own picture, its rice's
+  # shots, and every hardware photo, because those are the three places a picture can live and
+  # a limit that missed one of them would not be a limit.
+  def stored_picture_bytes
+    blobs = []
+    blobs << profile_picture.image.blob if profile_picture&.image&.attached?
+    blobs += ShowcaseShot.where(showcase_id: showcase&.id).filter_map { |shot| shot.image.blob if shot.image.attached? } if showcase
+    blobs += BuildPhoto.where(build_id: builds.select(:id)).filter_map { |photo| photo.image.blob if photo.image.attached? }
+
+    blobs.sum(&:byte_size)
+  end
+
+  # Whether adding `adding` bytes would take this account past `STORAGE_LIMIT`.
+  #
+  # `excluding` is the record being written. A picture replacing itself is not a second
+  # picture, so what the account *already* stores for that record comes off the total before
+  # the new size goes on — and it is read from the database, not from the record in hand: after
+  # `attach` the record's `image` is the new, unsaved one, and subtracting that would make a
+  # brand-new picture look like it freed space.
+  def over_storage_limit?(adding, excluding: nil)
+    stored = stored_picture_bytes - stored_bytes_for(excluding)
+
+    (stored + adding.to_i) > STORAGE_LIMIT
+  end
+
+  # What the account currently stores for one record, straight from storage. Zero for a record
+  # that is not persisted yet, because nothing of it is stored.
+  def stored_bytes_for(record)
+    return 0 if record.nil? || !record.persisted?
+
+    ActiveStorage::Attachment
+      .joins(:blob)
+      .where(record_type: record.class.polymorphic_name, record_id: record.id)
+      .sum("active_storage_blobs.byte_size")
   end
 
   private
