@@ -100,6 +100,32 @@ class DirectoryTest < ActionDispatch::IntegrationTest
     refute_match "Take this layout", response.body
   end
 
+  test "taking a layout says it replaces your rules, before and after the click" do
+    @other.profile.update!(document: %(<style>body { background-color: #000 }</style>))
+    sign_in
+
+    get profile_url(@other)
+
+    assert_response :success
+    assert_match "replaces your rules", response.body
+    confirm = Nokogiri::HTML(response.body).at_css("[data-turbo-confirm]")
+    assert confirm, "the take button carries no confirmation for Turbo to fire"
+    assert_match "replaces your own rules", confirm["data-turbo-confirm"]
+  end
+
+  test "the directory's take button says the same" do
+    @other.profile.update!(document: %(<style>body { background-color: #000 }</style>))
+    sign_in
+
+    get root_url
+
+    assert_response :success
+    assert_match "replaces your rules", response.body
+    confirm = Nokogiri::HTML(response.body).at_css("[data-turbo-confirm]")
+    assert confirm, "the directory take button carries no confirmation for Turbo to fire"
+    assert_match "replaces your own rules", confirm["data-turbo-confirm"]
+  end
+
   private
     def sign_in
       post session_url, params: { email_address: @user.email_address, password: "correct horse battery" }

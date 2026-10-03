@@ -111,7 +111,9 @@
         <% end %>
         <% if @rendered.css.present? %>
           <% if signed_in? && current_user != @user %>
-            <%= button_to "Take this layout", copy_layout_profile_path(@user), method: :post, class: "btn" %>
+            <%= button_to "Take this layout", copy_layout_profile_path(@user), method: :post, class: "btn",
+                  form: { data: { turbo_confirm: "Take @#{@user.username}’s layout? It replaces your own rules — the copy is the point." } } %>
+            <span class="label">replaces your rules</span>
           <% elsif !signed_in? %>
             <%= link_to "Sign in to take this layout", new_session_path, class: "btn" %>
           <% end %>

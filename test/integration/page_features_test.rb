@@ -150,6 +150,32 @@ class PageFeaturesTest < ActionDispatch::IntegrationTest
     refute_match "Use this layout", response.body
   end
 
+  test "wearing a layout says it keeps your rules, before and after the click" do
+    get layouts_url
+
+    assert_response :success
+    assert_match "keeps your rules", response.body
+    confirm = Nokogiri::HTML(response.body).at_css("[data-turbo-confirm]")
+    assert confirm, "the wear button carries no confirmation for Turbo to fire"
+    assert_match "stays yours", confirm["data-turbo-confirm"]
+  end
+
+  test "the layout preview names what it previews against" do
+    delete session_url
+    get layout_url(Layout.find("blacklight"))
+
+    assert_response :success
+    assert_match "previewing against an empty page", response.body
+    assert_match "sign in", response.body
+
+    sign_in
+    get layout_url(Layout.find("blacklight"))
+
+    assert_response :success
+    assert_match "previewing against your page", response.body
+    refute_match "to see it against your own parts", response.body
+  end
+
   test "applying a layout needs a session" do
     delete session_url
 

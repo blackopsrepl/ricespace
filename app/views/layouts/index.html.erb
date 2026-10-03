@@ -27,7 +27,9 @@
         <div class="flex flex-wrap items-center gap-2 p-4">
           <%= link_to "Preview", layout_path(layout), class: "btn" %>
           <% if signed_in? %>
-            <%= button_to "Wear this layout", apply_layout_path(layout), method: :post, class: "btn btn-primary" %>
+            <%= button_to "Wear this layout", apply_layout_path(layout), method: :post, class: "btn btn-primary",
+                  form: { data: { turbo_confirm: "Wear “#{layout.name}”? It layers under your own rules — what you changed stays yours." } } %>
+            <span class="label">keeps your rules</span>
           <% end %>
         </div>
       </li>

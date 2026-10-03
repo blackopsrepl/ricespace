@@ -182,8 +182,10 @@
           <% end %>
 
           <% if signed_in? && profile.document.include?("<style") %>
-            <div class="border-t border-zinc-800 px-4 py-3">
-              <%= button_to "Take its layout", copy_layout_profile_path(profile.user), method: :post, class: "label hover:text-zinc-200" %>
+            <div class="flex flex-wrap items-center gap-2 border-t border-zinc-800 px-4 py-3">
+              <%= button_to "Take its layout", copy_layout_profile_path(profile.user), method: :post, class: "label hover:text-zinc-200",
+                    form: { data: { turbo_confirm: "Take @#{profile.user.username}’s layout? It replaces your own rules — the copy is the point." } } %>
+              <span class="label">replaces your rules</span>
             </div>
           <% end %>
         </li>
