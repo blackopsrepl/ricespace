@@ -31,7 +31,6 @@ module Api
         replace_builds(sent[:builds]) if sent.key?(:builds)
         replace_friends(sent[:friends]) if sent.key?(:friends)
         replace_blurbs(sent[:blurbs]) if sent.key?(:blurbs)
-
         return if @errors.any? && fail_with(:unprocessable_content, "invalid_page",
           "some entries were refused", details: @errors)
 
@@ -112,7 +111,10 @@ module Api
           records = entries(raw).map do |entry|
             current_user.builds.build(
               title: entry["title"], kind: entry["kind"], summary: entry["summary"],
-              specs: entry["specs"], cooling: entry["cooling"], details: entry["details"]
+              # The column is NOT NULL and the model allows blank, so an omitted field has to
+              # become the empty string it defaults to — sending nil reaches SQLite as a
+              # constraint violation, which is a 500 where the client deserves an answer.
+              specs: entry["specs"].to_s, cooling: entry["cooling"].to_s, details: entry["details"].to_s
             )
           end
 
@@ -121,7 +123,7 @@ module Api
 
         def replace_blurbs(raw)
           records = entries(raw).map do |entry|
-            current_user.blurbs.build(title: entry["title"], body: entry["body"])
+            current_user.blurbs.build(title: entry["title"], body: entry["body"].to_s)
           end
 
           commit(current_user.blurbs, records, "blurb")
@@ -143,19 +145,28 @@ module Api
 
         # Validate everything first, then swap. A list that fails validation is reported
         # whole, and the page is left exactly as it was.
+        #
+        # The swap runs inside a transaction and the old entries go *before* the new ones are
+        # saved, because this is a whole-list replacement: a friend who is still on the list is
+        # not a duplicate, they are the list, and judging uniqueness against the old rows makes
+        # setting the same friends twice impossible. Any failure rolls the old list back, so a
+        # refused entry still cannot leave the page half rewritten.
         def commit(collection, records, label)
-          invalid = records.reject(&:valid?)
-          if invalid.any?
-            invalid.each do |record|
-              @errors += record.errors.full_messages.map { |message| "#{label}: #{message}" }
+          failures = []
+
+          collection.transaction do
+            collection.destroy_all
+
+            records.each do |record|
+              failures += record.errors.full_messages.map { |message| "#{label}: #{message}" } unless record.save
             end
-            return
+
+            raise ActiveRecord::Rollback if failures.any?
           end
 
-          collection.destroy_all
-          records.each do |record|
-            @errors += record.errors.full_messages.map { |m| "#{label}: #{m}" } unless record.save
-          end
+          @errors += failures
+        rescue ActiveRecord::NotNullViolation, ActiveRecord::StatementInvalid => error
+          @errors << "#{label}: #{error.message.split("\n").first}"
         end
     end
   end
