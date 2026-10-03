@@ -1,3 +1,15 @@
+# Cut a release from a tag.
+#
+# The client is a Ruby gem, so there is no build matrix and no cross-compilation: a pure-Ruby
+# gem is the same file everywhere, and the artifact worth publishing is that one file plus the
+# notes. An earlier version of this workflow built a Rust binary per platform; the client was
+# ported to Ruby and the matrix was left behind, which would have failed on the first tag after
+# the port and published no release at all.
+#
+# Push a tag and this runs the gate, builds the gem the tag's tree produces, and attaches it to
+# the release. The gate runs on the tagged commit rather than on the default branch, so what
+# publishes is what was tested.
+
 name: release
 
 on:
@@ -22,58 +34,33 @@ jobs:
       - name: Run the gate
         run: bin/ci
 
-  build:
-    needs: gate
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
-            suffix: linux-x86_64
-          - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
-            suffix: linux-aarch64
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-      - name: Install cross-compiler
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
-      - name: Build
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-        run: |
-          cd cli
-          cargo build --release --target ${{ matrix.target }}
-      - name: Package
-        run: |
-          cd cli
-          cp target/${{ matrix.target }}/release/ricespace ricespace-${{ matrix.suffix }}
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum ricespace-${{ matrix.suffix }} > ricespace-${{ matrix.suffix }}.sha256
-          else
-            shasum -a 256 ricespace-${{ matrix.suffix }} > ricespace-${{ matrix.suffix }}.sha256
-          fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ricespace-${{ matrix.suffix }}
-          path: |
-            cli/ricespace-${{ matrix.suffix }}
-            cli/ricespace-${{ matrix.suffix }}.sha256
-
   release:
-    needs: build
+    needs: gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
         with:
-          path: artifacts
-          merge-multiple: true
-      - name: Create release
+          ruby-version: "3.4"
+      - name: Build the gem
+        run: |
+          cd cli
+          gem build ricespace.gemspec --output ../ricespace.gem
+      - name: Check the gem carries the version the tag says
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          built="$(ruby -e 'require "rubygems/package"; puts Gem::Package.new("ricespace.gem").spec.version')"
+          echo "tag=$tag gem=$built"
+          test "$tag" = "$built" || { echo "the gem says $built but the tag says $tag"; exit 1; }
+      - name: Install it, so a release is never publishing something that cannot be installed
+        run: |
+          gem install --local ricespace.gem --user-install --no-document
+          # RubyGems writes the wrapper as `<name>.ruby<major.minor>`, not bare `<name>`, and
+          # `--user-install` puts it under the user gem home, which is not on PATH by default.
+          bin="$(dirname "$(gem env user_gemhome)")/bin"
+          "$bin/ricespace.ruby${RUBY_VERSION%.*}" --version
+      - name: Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/*
+          files: ricespace.gem
           generate_release_notes: true

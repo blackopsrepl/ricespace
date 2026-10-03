@@ -17,6 +17,10 @@ Gem::Specification.new do |spec|
   spec.license = "AGPL-3.0-or-later"
   spec.required_ruby_version = ">= 3.2"
 
+  # Build this from inside `cli/` — `cd cli && gem build ricespace.gemspec`. RubyGems resolves
+  # both these entries and its own file check against the working directory, not against the
+  # gemspec, so `gem build cli/ricespace.gemspec` from the repository root reports every file
+  # as missing. `make install` and the release workflow both change into `cli/` for this.
   spec.files = Dir["lib/**/*.rb", "exe/*", "README.md", "LICENSE"]
   spec.bindir = "exe"
   spec.executables = [ "ricespace" ]
