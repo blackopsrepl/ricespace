@@ -93,6 +93,39 @@ relationship on sign-up, and the flag that lets the name exist. Nothing else in
 the product is privileged, and no screen changes because a user is an admin.
 
 <img src="docs/assets/ron-avatar.png" alt="Ron's avatar — the site's default profile picture" width="140">
+
+## Hosting
+
+The space runs as two systemd units on the deployed host: the Rails server in
+production, bound to loopback, and a cloudflared quick tunnel in front of it.
+
+    ricespace.service         the Rails server (RAILS_ENV=production)
+    ricespace-tunnel.service  a cloudflared quick tunnel to that server
+
+The public URL is whatever hostname the quick tunnel was assigned; it changes
+whenever the tunnel restarts, so it is read from the running tunnel:
+
+    ricespace-url             # → https://<random-words>.trycloudflare.com
+
+Deployment is rsync, migrate, seed, restart:
+
+    rsync -az --delete --exclude '.git' --exclude 'cli/target' \
+      --exclude 'tmp/' --exclude 'log/' --exclude 'vendor/' \
+      --exclude 'storage/' --exclude '.bundle' \
+      -e ssh ./ <user>@<host>:<app-path>/
+    ssh <user>@<host> 'cd <app-path> && RAILS_ENV=production <bundle-env> \
+      bundle exec rails db:migrate db:seed && sudo systemctl restart ricespace'
+
+Two things the deployment must keep out of the rsync target, both learned the
+hard way: `storage/` (the SQLite database and the attached blobs — deleting it
+destroys the site) and bundler's app config (`BUNDLE_APP_CONFIG` points at a path
+outside the app precisely because an rsync with `--delete` would otherwise remove
+it and leave bundler unable to find the gems).
+
+Application state lives in the app's `storage/` directory on the host, so it
+survives a restart of either unit. `config/database.yml` puts the production
+database there.
+
 ## Two writers, one page
 
 The owner has the page open in the studio while their agent writes it over the
