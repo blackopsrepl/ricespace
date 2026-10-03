@@ -65,12 +65,20 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y musl-tools
 
-          # Cross-compiling needs more than musl-tools: the aarch64 build links `ring`,
-          # which looks for a target-prefixed compiler and fails with "No such file or
-          # directory" for `aarch64-linux-musl-gcc`. The gcc package provides it plus the
-          # prefixed binutils, so the cross build has something to link with.
+          # Cross-compiling to musl on another architecture needs a target-prefixed
+          # compiler: `ring` (arriving through ureq's TLS) looks for `aarch64-linux-musl-gcc`
+          # and reports "No such file or directory", naming neither the package nor the
+          # reason. Ubuntu has no such package for musl targets, so the toolchain comes from
+          # musl.cc, which is what the Rust ecosystem uses for this.
           if [ "${{ matrix.target }}" = "aarch64-unknown-linux-musl" ]; then
-            sudo apt-get install -y gcc-aarch64-linux-gnu
+            curl -fsSL https://musl.cc/aarch64-linux-musl-cross.tgz -o /tmp/musl-cross.tgz
+            sudo tar xzf /tmp/musl-cross.tgz -C /opt
+            echo "/opt/aarch64-linux-musl-cross/bin" >> "$GITHUB_PATH"
+
+            # Cargo needs to be told which linker to use for this target; the prefixed
+            # compiler on PATH is not enough on its own.
+            mkdir -p "$HOME/.cargo"
+            printf '[target.aarch64-unknown-linux-musl]\nlinker = "aarch64-linux-musl-gcc"\n' >> "$HOME/.cargo/config.toml"
           fi
 
       - run: cargo build --release --manifest-path cli/Cargo.toml --target ${{ matrix.target }}
