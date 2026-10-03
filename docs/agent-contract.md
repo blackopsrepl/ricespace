@@ -74,6 +74,27 @@ tells you what it is now: read again, reapply your edit, write again. Never retr
 write blindly — that is how you would silently discard the owner's edits, which
 they may be making in the studio at the same time.
 
+## What the page is made of, and what to target
+
+A page is not one blank slot. It has an anatomy, and its parts carry the ids and
+classes the stylesheets of the era reach for — so a layout pasted from 2006 lands on
+something instead of missing everything:
+
+    .contactTable   the name, greeting, mood and picture block
+    .profile-pic    the picture beside the name
+    .contactInfo    the text beside the picture
+    .nametext       a display name (the page's, a friend's, a commenter's)
+    .orangetext15   a section heading
+    #profile        the markup the owner wrote, and only that
+    .blurb          one titled block of the owner's text, with .blurb-title
+    .friendSpace    the friends list — .top8, .friend, .friendCount
+    .comments       comments and their form — .comment, .comment-body, .commentCount
+    .audio.player   the profile song, with audio.song
+    #profile-stamp  when the page was last changed
+
+Write to those names and your page's look survives. Renaming one would break every
+layout anybody has written, so they are treated as a contract.
+
 ## What you may write
 
 Ordinary HTML, including the deprecated presentational tags that profile pages of

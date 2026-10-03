@@ -55,6 +55,19 @@
           <%= link_to "Write it with an agent", agents_path, class: "text-fuchsia-400 hover:text-fuchsia-300" %>
         </p>
       <% end %>
+
+      <%# How a layout spread the first time: you found a page you liked and took its
+          stylesheet. Signed out, the offer is to sign in and take it. %>
+      <% if @rendered.css.present? %>
+        <p class="mt-2 text-xs">
+          <% if signed_in? && current_user != @user %>
+            <%= button_to "Take this layout", copy_layout_profile_path(@user), method: :post,
+                  class: "rounded border border-zinc-700 px-2 py-1 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100" %>
+          <% elsif !signed_in? %>
+            <%= link_to "Sign in to take this layout", new_session_path, class: "text-zinc-500 hover:text-zinc-300" %>
+          <% end %>
+        </p>
+      <% end %>
     </div>
   </div>
 </header>

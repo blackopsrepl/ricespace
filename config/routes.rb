@@ -40,6 +40,9 @@ Rails.application.routes.draw do
   post "profiles/:username/comments", to: "comments#create", as: :profile_comments
   delete "comments/:id", to: "comments#destroy", as: :comment
 
+  # Taking somebody's layout onto your own page, from their page.
+  post "profiles/:username/copy_layout", to: "profiles#copy_layout", as: :copy_layout_profile
+
   resources :profiles, only: [ :show ], param: :username
 
   # The published layouts. `apply` is a POST because it changes a page.

@@ -21,7 +21,7 @@ class LayoutApplicationTest < ActiveSupport::TestCase
     assert_includes rendered.html, "<marquee>my page</marquee>"
   end
 
-  test "the page's own rules are kept, and come last so they win" do
+  test "wearing a layout keeps the page's own rules under it, so they win" do
     @profile.update!(document: %(<style>.mine { color: red }</style><p>hi</p>))
     @profile.update!(document: LayoutApplication.new(@profile, @layout).document)
     css = @profile.rendered.css
@@ -29,6 +29,16 @@ class LayoutApplicationTest < ActiveSupport::TestCase
     assert_includes css, ".mine"
     assert_operator css.index(@layout.css.lines.first.strip), :<, css.index(".mine"),
       "the page's own rules should come after the layout's"
+  end
+
+  test "taking a layout drops the page's own rules" do
+    @profile.update!(document: %(<style>.mine { color: red }</style><p>hi</p>))
+    @profile.update!(document: LayoutApplication.new(@profile, @layout, keep_own_rules: false).document)
+    css = @profile.rendered.css
+
+    refute_includes css, ".mine"
+    assert_includes css, "background-color: #000000"
+    assert_includes @profile.document, "<p>hi</p>", "the markup is not a rule and stays"
   end
 
   test "a page has one stylesheet after applying, not two" do
