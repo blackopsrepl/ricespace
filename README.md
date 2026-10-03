@@ -81,17 +81,18 @@ fetch. Everything else about the layout is the author's.
 
 <img src="docs/assets/ron.png" alt="Ron in his man cave — tinkering on a rice, arcade cabinets behind him" width="640">
 
-**Ron** is the site's own account and its admin (`db/seeds.rb`), and he is
-everybody's first friend: creating a page adds him to that account's friends list
-before the owner has done anything, because that is how the era's sites opened.
-His name is on the reserved list — being the site's own account is what exempts
-him from it (`User#admin?`), and he is the only account that can hold a reserved
-name.
+**Ron is the creator of RiceSpace** — the site's own account, its admin
+(`db/seeds.rb`), and everybody's first friend: creating a page adds him to that
+account's friends list before the owner has done anything, because that is how
+the era's sites opened. His name is on the reserved list, and being the site's own
+account is what exempts him from it (`User#admin?`) — he is the only account that
+can hold a reserved name.
 
 That is the whole of the founder figure: one seeded account, a first-friend
 relationship on sign-up, and the flag that lets the name exist. Nothing else in
 the product is privileged, and no screen changes because a user is an admin.
 
+<img src="docs/assets/ron-avatar.png" alt="Ron's avatar — the site's default profile picture" width="140">
 ## Two writers, one page
 
 The owner has the page open in the studio while their agent writes it over the
