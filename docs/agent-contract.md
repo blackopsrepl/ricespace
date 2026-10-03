@@ -74,6 +74,32 @@ tells you what it is now: read again, reapply your edit, write again. Never retr
 write blindly — that is how you would silently discard the owner's edits, which
 they may be making in the studio at the same time.
 
+## The rice, over the API
+
+The showcase — the screenshot of the desktop and the facts about it — is its own
+resource, so a client can manage the whole page and not only the markup:
+
+    GET /api/v1/showcase
+    PATCH /api/v1/showcase
+
+`GET` returns the rice whether or not it has been built: an account that never made one
+gets an empty showcase, not a 404. The response carries the facts under their own keys
+(`facts.window_manager`) and as a list of filled-in pairs (`filled`), because the keys are
+what a script sets and the list is what a terminal or a page renders. Shots are listed with
+their captions and byte sizes.
+
+`PATCH` takes only the fields to change and leaves the rest alone:
+
+    curl -s -X PATCH -H "Authorization: Bearer ***" -H "Content-Type: application/json" \
+      -d '{"showcase":{"title":"Purple on a ThinkPad","window_manager":"Hyprland"}}' \
+      http://localhost:3000/api/v1/showcase
+
+A `PATCH` with no existing showcase creates one. The details field takes the same markup as
+the page, cleaned on render by the same allowlist.
+
+The command-line client speaks this API with the same token — see `cli/` in the repository
+(`ricespace page show`, `ricespace page rice --theme …`).
+
 ## What the page is made of, and what to target
 
 A page is not one blank slot. It has an anatomy, and its parts carry the ids and
@@ -86,6 +112,10 @@ something instead of missing everything:
     .nametext       a display name (the page's, a friend's, a commenter's)
     .orangetext15   a section heading
     #profile        the markup the owner wrote, and only that
+    #showcase       the rice — .rice-frame, .rice-shot, .rice-title, .fact
+    #watch          videos and streams, embedded from where they are hosted
+    #demos          the demoscene — .demo, .demo-title, .demo-credit, .demo-placing
+    #hardware       physical builds — .build, .build-title, .build-details
     .blurb          one titled block of the owner's text, with .blurb-title
     .friendSpace    the friends list — .top8, .friend, .friendCount
     .comments       comments and their form — .comment, .comment-body, .commentCount
