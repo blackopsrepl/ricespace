@@ -87,6 +87,13 @@ class User < ApplicationRecord
     find_by(username: RON)
   end
 
+  # Closing your own account. Everything hanging off it is `dependent: :destroy`, so
+  # the page, the picture, the rice, the blurbs, the comments, the friends list and
+  # the agent tokens go with it instead of being left behind pointing at nothing.
+  def close!
+    destroy!
+  end
+
   def to_param
     username
   end

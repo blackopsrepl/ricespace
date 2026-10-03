@@ -8,6 +8,10 @@ you are a second editing tool for the page they already have. Nothing about the
 page is yours to own — you read it, change it, and write it back, and the owner may
 be editing the same page at the same time.
 
+Every path below is relative to the space's own address. Ask the owner for it, or
+read it from the config the CLI writes; the API is at `/api/v1` on that host, and
+this document never names one.
+
 ## Get a token
 
 The owner issues an agent token in the studio and hands it to you. It looks like
@@ -16,12 +20,12 @@ the owner issues another and revokes the old one.
 
 Send it as a bearer token on every request:
 
-    Authorization: Bearer <the token>
+    Authorization: Bearer <token>
 
 The token identifies one account. There is no other session: no cookies, no CSRF
 token, no login step.
 
-## Read the page
+## The page's markup
 
     GET /api/v1/profile
 
@@ -30,7 +34,7 @@ Response:
     {
       "profile": {
         "username": "vittorio",
-        "url": "http://localhost:3000/profiles/vittorio",
+        "url": "<the site>/profiles/vittorio",
         "document": "<style>body { background: #000 }</style><marquee>hi</marquee>",
         "html": "<marquee>hi</marquee>",
         "css": "body { background: #000; }",
@@ -50,8 +54,6 @@ Three of those matter, and they are not interchangeable:
   `visibility` and `display` rules are. If you never read it, you are editing blind.
 
 `version` is the revision you just read; you send it back when you write.
-
-## Write the page
 
     PATCH /api/v1/profile
     Content-Type: application/json
@@ -74,31 +76,51 @@ tells you what it is now: read again, reapply your edit, write again. Never retr
 write blindly — that is how you would silently discard the owner's edits, which
 they may be making in the studio at the same time.
 
-## The rice, over the API
+## Everything else on the page
 
-The showcase — the screenshot of the desktop and the facts about it — is its own
-resource, so a client can manage the whole page and not only the markup:
+The rice, the links, the demos, the hardware, the friends and the blurbs are their
+own endpoints, so a client can manage the whole page and not only its markup:
 
-    GET /api/v1/showcase
-    PATCH /api/v1/showcase
+    GET /api/v1/showcase      the rice: its facts and its shots
+    PATCH /api/v1/showcase    change only the fields you send
 
-`GET` returns the rice whether or not it has been built: an account that never made one
-gets an empty showcase, not a 404. The response carries the facts under their own keys
-(`facts.window_manager`) and as a list of filled-in pairs (`filled`), because the keys are
-what a script sets and the list is what a terminal or a page renders. Shots are listed with
-their captions and byte sizes.
+    GET /api/v1/page          every list on the page
+    PUT /api/v1/page          replace the lists you send, leave the rest alone
 
-`PATCH` takes only the fields to change and leaves the rest alone:
+`GET /api/v1/showcase` returns the rice whether or not it has been built: an account
+that never made one gets an empty showcase, not a 404. The response carries the facts
+under their own keys (`facts.window_manager`) and as a list of filled-in pairs
+(`filled`), because the keys are what a script sets and the list is what a terminal or
+a page renders. Shots are listed with their captions and byte sizes.
 
-    curl -s -X PATCH -H "Authorization: Bearer ***" -H "Content-Type: application/json" \
-      -d '{"showcase":{"title":"Purple on a ThinkPad","window_manager":"Hyprland"}}' \
-      http://localhost:3000/api/v1/showcase
+`PATCH /api/v1/showcase` takes only the fields to change and leaves the rest alone. A
+`PATCH` with no existing showcase creates one. The details field takes the same markup
+as the page, cleaned on render by the same allowlist:
 
-A `PATCH` with no existing showcase creates one. The details field takes the same markup as
-the page, cleaned on render by the same allowlist.
+    {"showcase": {"title": "Purple on a ThinkPad", "window_manager": "Hyprland"}}
 
-The command-line client speaks this API with the same token — see `cli/` in the repository
-(`ricespace page show`, `ricespace page rice --theme …`).
+`PUT /api/v1/page` is whole-list replacement, atomic per kind: every entry of a list
+is validated before any of it is written, so a refused entry cannot leave a page half
+rewritten. A key you do not send is untouched; a key sent as an empty list is cleared.
+That is what makes it idempotent from a shell script.
+
+    {"page": {
+      "links":   [{"url": "https://www.youtube.com/watch?v=…", "title": "what to call it"}],
+      "demos":   [{"title": "…", "group": "…", "party": "…", "year": 1994,
+                   "platform": "…", "category": "…", "placing": 1, "url": "…", "note": "…"}],
+      "builds":  [{"title": "…", "kind": "rack", "summary": "…", "specs": "…",
+                   "cooling": "…", "details": "markup"}],
+      "friends": [{"username": "cordelia"}],
+      "blurbs":  [{"title": "Interests", "body": "markup"}]
+    }}
+
+Friends are usernames and must exist already; the other four carry their own facts.
+A refused list is reported whole in `error.details` and the list you already had is
+left intact.
+
+The command-line client speaks this API with the same token — see `cli/` in the
+repository (`ricespace page show`, `ricespace page rice --theme …`, `ricespace page
+links`, and so on).
 
 ## What the page is made of, and what to target
 
@@ -163,19 +185,22 @@ Every failure is JSON with a stable code:
 
     { "error": { "code": "invalid_token", "message": "...", "details": [...] } }
 
-- `401 invalid_token` — missing, malformed or unknown token.
-- `400 missing_parameter` — the request carried no `profile.document` or no
-  `profile.version`.
-- `409 stale_document` — the page moved since you read it; `details.current_version`
-  is the revision to re-read from.
-- `422 invalid_profile` — the document was refused; `details` lists why.
+| Status | Code | When |
+|---|---|---|
+| 401 | `invalid_token` | missing, malformed or unknown token |
+| 400 | `missing_parameter` | the request carried no `profile.document` or no `profile.version` |
+| 409 | `stale_document` | the page moved since you read it; `details.current_version` is the revision to re-read from |
+| 422 | `invalid_profile` | the document was refused; `details` lists why |
+| 422 | `invalid_showcase` | the rice was refused; `details` lists why |
+| 422 | `invalid_page` | one or more list entries were refused; `details` lists which |
 
 ## A worked example
 
     TOKEN=...
+    BASE=<the space's address>
     # Read: note the version, and see which of the owner's CSS rules survived.
-    curl -s -H "Authorization: Bearer $TOKEN" http://localhost:3000/api/v1/profile
+    curl -s -H "Authorization: Bearer $TOKEN" "$BASE/api/v1/profile"
     # Write: send the whole page back with the version you just read.
     curl -s -X PATCH -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
       -d '{"profile":{"document":"<style>body { background: #111; color: #0ff }</style><marquee>welcome</marquee>","version":1}}' \
-      http://localhost:3000/api/v1/profile
+      "$BASE/api/v1/profile"

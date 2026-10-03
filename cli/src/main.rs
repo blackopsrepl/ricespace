@@ -48,7 +48,7 @@ struct Cli {
 enum Command {
     /// Save the space's address and your token for next time.
     Login {
-        /// The space's address, e.g. http://127.0.0.1:3021.
+        /// The space's address, e.g. https://rice.example.com.
         #[arg(long, short = 'H')]
         url: Option<String>,
 
@@ -190,7 +190,7 @@ fn run(cli: &Cli, base: &str, token: &str) -> Result<(), space::Failure> {
             if url.trim().is_empty() || token.trim().is_empty() {
                 return Err(space::Failure::Usage(
                     "login needs both a space and a token:
-`ricespace login --url http://127.0.0.1:3021 --token rs_…`"
+`ricespace login --url https://rice.example.com --token rs_…`"
                         .into(),
                 ));
             }

@@ -9,6 +9,13 @@ class ApplicationController < ActionController::Base
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
 
+  # Rate limits need a store that actually remembers between requests. The test
+  # environment sets `:null_store`, which reads every counter back as nil — a limit
+  # backed by it would never fire, and the tests that exercise a limit would pass
+  # against no limit at all. This store is used only by `rate_limit`, so the suite
+  # still runs with caching off everywhere else.
+  RATE_LIMIT_STORE = ActiveSupport::Cache::MemoryStore.new
+
   helper_method :current_user, :signed_in?
 
   private
