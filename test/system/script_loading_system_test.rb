@@ -55,6 +55,39 @@ class ScriptLoadingSystemTest < ApplicationSystemTestCase
     refute User.exists?(@user.id)
   end
 
+  test "wearing a layout asks first and says it keeps your own rules" do
+    signed_in_as @user
+    visit layouts_path
+
+    # The index shows a card per layout, so every card carries its own button.
+    message = accept_confirm do
+      click_on "Wear this layout", match: :first
+    end
+
+    assert_match "stays yours", message, "the wear confirmation never named what it does"
+  end
+
+  test "taking another profile's layout asks first and says it replaces your rules" do
+    other = User.create!(username: "taker", email_address: "t@example.com",
+      password: TEST_PASSWORD, name: "Taker")
+    other.profile.update!(document: "<style>body { background-color: #000 }</style>")
+    signed_in_as @user
+    visit profile_path(other)
+
+    message = accept_confirm do
+      click_on "Take this layout"
+    end
+
+    assert_match "replaces your own rules", message, "the take confirmation never named what it does"
+
+    # The write happens in the app's own request thread, so the redirect (and its
+    # flash) is the moment the copy has landed; reading the row before it is a race,
+    # not a failure.
+    assert_text "It is yours to edit now"
+    assert_includes @user.profile.reload.document.to_s, "background-color",
+      "accepting the confirmation did not take the layout"
+  end
+
   test "the profile song starts on the first interaction" do
     @user.profile.update!(song_title: "a modem song", song_url: "https://example.com/modem.mp3")
 
