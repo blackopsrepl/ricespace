@@ -87,6 +87,17 @@ class ProfileMarkup
     new(html).render
   end
 
+  # The raw parts of a stored document, before cleaning. Used when a document is
+  # rewritten — applying a layout replaces the stylesheet and keeps the markup —
+  # where what is needed is the author's own text, not a cleaned rendering of it.
+  def markup_source
+    document.gsub(STYLE_BLOCK, "").strip
+  end
+
+  def stylesheet_source
+    document.scan(STYLE_BLOCK).flatten.map(&:strip).reject(&:empty?).join("\n")
+  end
+
   def initialize(html)
     @html = html.to_s
   end

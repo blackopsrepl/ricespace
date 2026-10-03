@@ -26,4 +26,13 @@ class FriendshipsController < ApplicationController
 
     redirect_to studio_path, notice: "Removed from your friends list."
   end
+
+  # Reorder the list. The first few are the ones a page shows first, so the order
+  # is what makes the list the owner's rather than alphabetical.
+  def move
+    friendship = current_user.friendships.find(params[:id])
+    friendship.move!(params[:direction])
+
+    redirect_to studio_path, notice: "Reordered."
+  end
 end

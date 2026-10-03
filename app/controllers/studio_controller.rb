@@ -1,7 +1,11 @@
 # frozen_string_literal: true
 
-# The editor: the page an owner writes in the browser, and the agent tokens that
-# let a coding agent write the same page.
+# The editor: the page an owner writes in the browser, the page's song, and the
+# agent tokens that let a coding agent write the same page.
+#
+# The song is edited through this controller rather than one of its own because it
+# is part of the page, and therefore takes the page's revision check: a song saved
+# from a stale editor is a song saved over somebody else's work.
 class StudioController < ApplicationController
   before_action :require_authentication
 
@@ -10,12 +14,7 @@ class StudioController < ApplicationController
     @tokens = current_user.agent_tokens.recent_first
     @issued_token = flash[:agent_token]
     @conflicted = flash[:conflict]
-
-    # The page's bits, managed from here too: the studio is where an owner
-    # assembles the sections a layout will target.
-    @picture = current_user.profile_picture
-    @blurbs = current_user.blurbs.in_order
-    @friends = current_user.friends.order(:username)
+    load_page_bits
   end
 
   def update
@@ -28,10 +27,7 @@ class StudioController < ApplicationController
     # typed is handed back rather than dropped.
     if expected && profile.version != expected
       @profile = profile.tap { |record| record.document = document }
-      @tokens = current_user.agent_tokens.recent_first
-      @picture = current_user.profile_picture
-      @blurbs = current_user.blurbs.in_order
-      @friends = current_user.friends.order(:username)
+      load_page_bits
       @conflicted = true
       return render :show, status: :conflict
     end
@@ -40,15 +36,42 @@ class StudioController < ApplicationController
       redirect_to studio_path, notice: "Profile saved."
     else
       @profile = profile
-      @tokens = current_user.agent_tokens.recent_first
-      @picture = current_user.profile_picture
-      @blurbs = current_user.blurbs.in_order
-      @friends = current_user.friends.order(:username)
+      load_page_bits
+      render :show, status: :unprocessable_content
+    end
+  end
+
+  # The song, saved through the page it belongs to.
+  def update_song
+    profile = current_user.profile
+    expected = expected_version
+
+    if expected && profile.version != expected
+      @profile = profile
+      load_page_bits
+      @conflicted = true
+      return render :show, status: :conflict
+    end
+
+    if profile.update(song_params)
+      redirect_to studio_path, notice: profile.song? ? "Song saved." : "Song removed."
+    else
+      @profile = profile
+      load_page_bits
+      flash.now[:alert] = profile.errors.full_messages.to_sentence
       render :show, status: :unprocessable_content
     end
   end
 
   private
+    def load_page_bits
+      @tokens ||= current_user.agent_tokens.recent_first
+      @picture = current_user.profile_picture
+      @blurbs = current_user.blurbs.in_order
+      @friendships = current_user.friendships.in_order.includes(:friend)
+      @friends = @friendships.map(&:friend)
+    end
+
     def document_param
       attributes = params.require(:profile).permit(:document, :version)
       raise ActionController::ParameterMissing, :document unless attributes.key?(:document)
@@ -56,10 +79,14 @@ class StudioController < ApplicationController
       attributes[:document].to_s
     end
 
+    def song_params
+      params.require(:profile).permit(:song_url, :song_title)
+    end
+
     # The revision the editor was showing. An editor that sends none gets no
     # conflict check — it has no copy of the page to lose.
     def expected_version
-      value = params.require(:profile).permit(:document, :version)[:version]
+      value = params.require(:profile).permit(:document, :song_url, :song_title, :version)[:version]
       return nil if value.blank?
 
       Integer(value)

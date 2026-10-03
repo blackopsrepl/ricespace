@@ -34,6 +34,11 @@ class User < ApplicationRecord
   # removes it from their lists rather than leaving a hole.
   has_many :reverse_friendships, class_name: "Friendship", foreign_key: :friend_id, dependent: :destroy
 
+  # The published stylesheets this account may apply to its page.
+  def layouts
+    Layout.all
+  end
+
   normalizes :email_address, with: ->(value) { value.to_s.strip.downcase }
   normalizes :username, with: ->(value) { value.to_s.strip.downcase }
   normalizes :greeting, with: ->(value) { value.to_s.strip }

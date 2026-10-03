@@ -3,10 +3,10 @@
 <%# The author's stylesheet, written after everything the site itself loads, so a
     profile can restyle the whole page — the site's chrome included. This is the
     part of the old profiles that was never a rich-text field, and it is why this
-    tag is here rather than scoped to the markup below. It is cleaned by PageCss. %>
-<% if @rendered.css.present? %>
-  <style><%= @rendered.css %></style>
-<% end %>
+    tag is here rather than scoped to the markup below. It is cleaned by PageCss,
+    and emitted raw — see ApplicationHelper#author_stylesheet for why that is both
+    necessary and safe. %>
+<%= author_stylesheet(@rendered.css) %>
 
 <%#
   The page's anatomy. Everything below this comment is what a layout from the era
@@ -59,6 +59,19 @@
   </div>
 </header>
 
+<%# The profile song. Native audio because it is one track and the page plays it:
+    no library, no custom player, and `preload: "none"` so opening a page does not
+    download somebody's song before they ask for it. %>
+<% if @profile.song? %>
+  <div class="audio player mb-6">
+    <p class="song-title text-xs text-zinc-500">
+      <span class="orangetext15">profile song</span>:
+      <span class="nametext"><%= @profile.song_title.presence || File.basename(URI.parse(@profile.song_url).path) %></span>
+    </p>
+    <audio class="song" controls preload="none" src="<%= @profile.song_url %>"></audio>
+  </div>
+<% end %>
+
 <%# The page the owner wrote. Inside an element whose id a stylesheet may reach,
     and nothing else: no column around it, no card of ours — the page's own rules
     decide what it looks like, including whether the site's chrome is still here. %>
@@ -95,8 +108,8 @@
 
   <% if @friends.any? %>
     <ul class="top8 mt-4 flex flex-wrap gap-4">
-      <% @friends.each do |friend| %>
-        <li class="friend">
+      <% @friends.each_with_index do |friend, index| %>
+        <li class="friend<%= " top8-slot" if index < ProfilesController::TOP_EIGHT %>">
           <%= link_to profile_path(friend), class: "flex w-20 flex-col items-center gap-1 text-center" do %>
             <% if friend.profile_picture&.image&.attached? %>
               <%= image_tag friend.profile_picture.image.variant(:thumb), alt: friend.display_name,

@@ -12,15 +12,19 @@ class ProfilesController < ApplicationController
   before_action :require_authentication, only: [ :update_picture, :destroy_picture ]
 
   # How many friends a page lists, and how many comments it shows.
-  TOP_FRIENDS = 12
+  TOP_FRIENDS = 24
   COMMENTS_SHOWN = 20
+
+  # The first eight are the ones the page shows first — the owner's order, which is
+  # what made the list worth ordering at all.
+  TOP_EIGHT = 8
 
   def show
     @user = User.find_by!(username: params[:username])
     @profile = @user.profile
     @rendered = @profile.rendered
     @picture = @user.profile_picture
-    @friends = @user.friends.order(:username).limit(TOP_FRIENDS)
+    @friends = @user.friendships.in_order.includes(:friend).map(&:friend).first(TOP_FRIENDS)
     @friend_count = @user.friendships.count
     @blurbs = @user.blurbs.in_order
     @comments = @user.comments.includes(:author).recent_first.limit(COMMENTS_SHOWN)

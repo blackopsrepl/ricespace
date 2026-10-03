@@ -21,9 +21,12 @@ Rails.application.routes.draw do
   resource :registration, only: [ :new, :create ]
   resource :session, only: [ :new, :create, :destroy ]
   resource :studio, only: [ :show, :update ], controller: "studio"
+  patch "studio/song", to: "studio#update_song", as: :update_song_studio
   resource :account, only: [ :update ], controller: "accounts"
   resources :agent_tokens, only: [ :create, :destroy ]
-  resources :friendships, only: [ :create, :destroy ]
+  resources :friendships, only: [ :create, :destroy ] do
+    member { patch :move }
+  end
   resources :blurbs, only: [ :create, :update, :destroy ] do
     member { patch :move }
   end
@@ -38,6 +41,11 @@ Rails.application.routes.draw do
   delete "comments/:id", to: "comments#destroy", as: :comment
 
   resources :profiles, only: [ :show ], param: :username
+
+  # The published layouts. `apply` is a POST because it changes a page.
+  resources :layouts, only: [ :index, :show ] do
+    member { post :apply }
+  end
 
   root "pages#home"
 end

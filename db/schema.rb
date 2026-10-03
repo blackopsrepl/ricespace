@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_000004) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_03_000005) do
   create_table "agent_tokens", force: :cascade do |t|
     t.integer "user_id", null: false
     t.string "name", null: false
@@ -50,8 +50,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_000004) do
     t.integer "friend_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "position", default: 0, null: false
     t.index ["friend_id"], name: "index_friendships_on_friend_id"
     t.index ["user_id", "friend_id"], name: "index_friendships_on_user_id_and_friend_id", unique: true
+    t.index ["user_id", "position"], name: "index_friendships_on_user_id_and_position"
     t.index ["user_id"], name: "index_friendships_on_user_id"
   end
 
@@ -68,6 +70,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_000004) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "version", default: 0, null: false
+    t.string "song_url"
+    t.string "song_title"
     t.index ["user_id"], name: "index_profiles_on_user_id", unique: true
   end
 

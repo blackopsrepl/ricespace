@@ -19,8 +19,26 @@
     <%= javascript_importmap_tags %>
   </head>
 
+  <script type="module">
+    // The profile song. Autoplay, as the era's pages did it — but browsers refuse
+    // audible autoplay until the visitor has interacted with the page, so this
+    // starts the track on the first interaction and does nothing if the browser
+    // says no. There is never a prompt and never a second attempt per interaction.
+    const song = document.querySelector("audio.song");
+    if (song) {
+      const start = () => {
+        song.play().then(() => {
+          document.removeEventListener("pointerdown", start);
+          document.removeEventListener("keydown", start);
+        }).catch(() => {});
+      };
+      document.addEventListener("pointerdown", start, { once: true });
+      document.addEventListener("keydown", start, { once: true });
+    }
+  </script>
+
   <body class="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
-    <header class="border-b border-zinc-800 bg-zinc-900/60">
+    <header id="site-header" class="border-b border-zinc-800 bg-zinc-900/60">
       <div class="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
         <%= link_to root_path, class: "flex items-baseline gap-2" do %>
           <span class="text-lg font-bold tracking-tight text-fuchsia-400">RiceSpace</span>
@@ -29,6 +47,7 @@
 
         <nav class="flex items-center gap-3 text-sm">
           <%= link_to "Pages", root_path, class: "text-zinc-400 hover:text-zinc-100" %>
+          <%= link_to "Layouts", layouts_path, class: "text-zinc-400 hover:text-zinc-100" %>
           <%= link_to "Agents", agents_path, class: "text-zinc-400 hover:text-zinc-100" %>
           <% if signed_in? %>
             <%= link_to "Studio", studio_path, class: "text-zinc-400 hover:text-zinc-100" %>
