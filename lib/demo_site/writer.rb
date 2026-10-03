@@ -49,6 +49,7 @@ module DemoSite
           showcase = user.showcase || user.build_showcase
           showcase.assign_attributes(spec[:rice])
           showcase.save! if showcase.new_record? || showcase.changed?
+          screenshot(showcase)
         end
         if spec[:interests]
           user.profile.update!(interests: spec[:interests]) unless user.profile.interests == spec[:interests]
@@ -84,6 +85,16 @@ module DemoSite
         HTML
         profile = Profile.new(document: markup)
         LayoutApplication.new(profile, Layout.find(spec.fetch(:layout)), keep_own_rules: false).document
+      end
+
+      def screenshot(showcase)
+        return if showcase.shots.any?
+
+        source = Rails.root.join("docs", "assets", "screens", "#{showcase.user.username}-rice.png")
+        return unless source.exist?
+
+        shot = showcase.shots.create!(caption: "#{showcase.user.display_name}'s rice")
+        shot.image.attach(io: source.open, filename: "#{showcase.user.username}-rice.png", content_type: "image/png")
       end
 
       def friendships
