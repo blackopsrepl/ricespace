@@ -17,6 +17,8 @@ Rails.application.routes.draw do
       resource :profile, only: [ :show, :update ], controller: "profiles"
       # The rice, for a client that manages the whole space rather than only the markup.
       resource :showcase, only: [ :show, :update ], controller: "showcases"
+      # Everything else that lives on a page: links, demos, hardware, friends, blurbs.
+      resource :page, only: [ :show, :update ], controller: "page"
     end
   end
 
