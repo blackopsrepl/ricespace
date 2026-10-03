@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby.ruby3.4
+require "rubygems"
+require "bundler/setup"
+
+load Gem.bin_path("thruster", "thrust")
