@@ -2,7 +2,7 @@
 # frozen_string_literal: true
 
 #
-# Draw the README's pictures from the running site.
+# Draw the pictures the project shows: the README's, and the ones a post on X attaches.
 #
 # The images in docs/assets/screens are what somebody sees before deciding whether to run
 # this, and they go stale the moment the page changes: the last set was drawn before the page
@@ -14,8 +14,13 @@
 # be of what the site actually serves, stylesheets and attachments included, and a renderer
 # that skipped the asset pipeline would produce a picture of a page nobody sees.
 #
-#   bin/shots            # against http://127.0.0.1:3010
+#   bin/shots            # both sets, against http://127.0.0.1:3010
 #   bin/shots URL        # against somewhere else
+#
+# The social set is cropped rather than rendered at size, because X shows a 16:9 band and
+# crops anything else through the middle — a full-page screenshot gets its top and bottom cut
+# off with no way to choose what survives. Cutting it here is the only way to decide what the
+# picture leads with.
 #
 # Ruby, like the rest of the repository: the trimming is vips, which the app already uses for
 # images, rather than a second language and a second toolchain. Booting the app is what makes
@@ -26,6 +31,11 @@ require "fileutils"
 
 BASE = ARGV[0] || "http://127.0.0.1:3010"
 OUT = File.expand_path("../docs/assets/screens", __dir__)
+SOCIAL = File.expand_path("../docs/assets/social", __dir__)
+
+# 16:9, which is what X displays. Anything else is cropped through the middle by the client,
+# so the crop is made here where it can be aimed at the content.
+SOCIAL_RATIO = 16.0 / 9.0
 
 # Each picture: where to point, how wide, and the most of the page worth showing.
 #
@@ -48,19 +58,39 @@ SHOTS = [
     note: "the contract an agent is handed" }
 ].freeze
 
+# The pictures a post attaches.
+#
+# `top` is where the interesting band starts, in fractions of the rendered page: a layout grid
+# reads best from the first row of cards, and a page reads best from the rice rather than from
+# the contact table above it. The height is worked out from the 16:9 ratio, so the crop is
+# always a legal shape whatever the page's own dimensions are.
+SOCIAL_SHOTS = [
+  { name: "themes", shot: :layouts, top: 0.20,
+    note: "eight Omarchy themes, each named as Omarchy's" },
+  { name: "reactions", shot: :wall, top: 0.22,
+    note: "a reaction line and a wall under each thing posted" }
+].freeze
+
 def chromium
   @chromium ||= %w[chromium chromium-browser google-chrome]
     .find { |bin| system("command -v #{bin} >/dev/null 2>&1") } ||
     abort("no chromium on PATH — install one to redraw the screenshots")
 end
 
-def capture(shot)
-  file = File.join(OUT, "#{shot[:name]}.png")
+def render(shot, file)
   ok = system(chromium, "--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars",
     "--force-device-scale-factor=1", "--window-size=#{shot[:width]},#{shot[:budget]}",
     "--screenshot=#{file}", "#{BASE}#{shot[:path]}", out: File::NULL, err: File::NULL)
 
-  unless ok && File.exist?(file)
+  return false unless ok && File.exist?(file)
+
+  true
+end
+
+def capture(shot)
+  file = File.join(OUT, "#{shot[:name]}.png")
+
+  unless render(shot, file)
     warn "  #{shot[:name]}: FAILED — is #{BASE} serving?"
     return false
   end
@@ -93,9 +123,30 @@ def trim(path, max)
   image.extract_area(0, 0, width, keep).write_to_file(path)
 end
 
+def social(source, spec)
+  full = Vips::Image.new_from_file(source)
+  height = (full.width / SOCIAL_RATIO).round
+  top = [ (full.height * spec[:top]).round, full.height - height ].min
+  top = 0 if top.negative?
+
+  image = full.extract_area(0, top, full.width, [ height, full.height ].min)
+  image.write_to_file(File.join(SOCIAL, "#{spec[:name]}.png"))
+  puts format("  %-18s %4dx%-5d %s", "#{spec[:name]}.png", image.width, image.height, spec[:note])
+end
+
 FileUtils.mkdir_p(OUT)
-puts "shots: #{SHOTS.size} pictures of #{BASE}"
+puts "shots: #{SHOTS.size} pages of #{BASE}"
 failed = SHOTS.reject { |shot| capture(shot) }
-puts(failed.empty? ? "shots: all #{SHOTS.size} written to docs/assets/screens/" :
+
+if failed.empty?
+  FileUtils.mkdir_p(SOCIAL)
+  puts "social: #{SOCIAL_SHOTS.size} crops for a post"
+  SOCIAL_SHOTS.each do |spec|
+    source = File.join(OUT, "#{SHOTS.find { |s| s[:name] == spec[:shot].to_s }[:name]}.png")
+    social(source, spec)
+  end
+end
+
+puts(failed.empty? ? "shots: all #{SHOTS.size} pages and #{SOCIAL_SHOTS.size} crops written" :
   "shots: #{failed.size} FAILED — #{failed.map { |s| s[:name] }.join(", ")}")
 exit(failed.empty? ? 0 : 1)

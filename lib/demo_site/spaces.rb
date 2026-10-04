@@ -162,11 +162,11 @@ module DemoSite
       interests: { "general" => "night city, blue hour, tokyo", "music" => "boards of canada, tycho", "movies" => "blade runner, ghost in the shell", "television" => "serial experiments lain", "books" => "william gibson, bruce sterling", "heroes" => "the guy who wrote sway" },
       links: [
         { platform: "youtube", url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ", title: "my desk tour" },
-        { platform: "vimeo", url: "https://vimeo.com/12345678", title: "late night synth session" },
+        { platform: "vimeo", url: "https://vimeo.com/76979871", title: "late night synth session" },
         { platform: "twitch", url: "https://www.twitch.tv/videos/123456789", title: "building a mechanical keyboard" }
       ],
       demos: [ { title: "second reality", group_name: "Future Crew", party: "Assembly 93", release_year: 1993, ranking: 1,
-                 url: "https://www.youtube.com/watch?v=rFjFRA0VS58", watch_note: "the one that started all of this" } ],
+                 url: "https://www.youtube.com/watch?v=AL88UNqiInc", watch_note: "the one that started all of this" } ],
       build: { title: "the night machine", kind: "desktop", summary: "quiet, blue, on all night",
                specs: "ryzen 7, 32gb", cooling: "one big noctua" }
     },
@@ -194,7 +194,7 @@ module DemoSite
               terminal: "alacritty", font: "terminus", theme: "gruvbox" },
       blurb: { title: "About", body: "i keep old hardware running because new hardware is boring." },
       demos: [ { title: "fr-025", group_name: "Farbrausch", party: "Breakpoint 2003", release_year: 2003, ranking: 1,
-                 category: "64k intro", url: "https://www.youtube.com/watch?v=1hQmK4lV3sU" } ],
+                 category: "64k intro", url: "https://www.youtube.com/watch?v=AVoGTYbQ9k8" } ],
       build: { title: "the retro bench", kind: "desktop", summary: "a 2014 cpu in a 2026 case",
                specs: "i7-4790k, 16gb", cooling: "a fan from a skip" }
     },
@@ -233,7 +233,7 @@ module DemoSite
               hardware: "a work laptop", window_manager: "gnome", bar: "none",
               terminal: "gnome-terminal", font: "cantarell", theme: "lumon" },
       blurb: { title: "About", body: "i do not remember writing this." },
-      links: [ { platform: "youtube", url: "https://www.youtube.com/watch?v=x8H0j9FjO3c", title: "orientation" } ],
+      links: [ { platform: "youtube", url: "https://www.youtube.com/watch?v=Zx31n2VDzh4", title: "orientation" } ],
       build: { title: "the work machine", kind: "desktop", summary: "issued, not chosen",
                specs: "unknown", cooling: "please do not open it" }
     },
@@ -259,7 +259,7 @@ module DemoSite
               terminal: "ghostty", font: "iosevka", theme: "ethereal" },
       blurb: { title: "About", body: "a page should look like something. that's the whole idea." },
       demos: [ { title: "state of the art", group_name: "Spaceballs", party: "The Gathering 2004", release_year: 2004, ranking: 1,
-                 url: "https://www.youtube.com/watch?v=FhL5ZtJUvZc" } ],
+                 url: "https://www.youtube.com/watch?v=SKacD_644qI" } ],
       build: { title: "the loop", kind: "desktop", summary: "hardline, because it looks right",
                specs: "7950x, 64gb", cooling: "custom loop, hardline" }
     },
@@ -276,7 +276,7 @@ module DemoSite
         { title: "About Me", body: "<b>hi!!</b> i like computers, my cat, and the <i>internet</i>." },
         { title: "My Cat", body: "his name is <b>modem</b> because he makes a noise when he wants food." }
       ],
-      links: [ { platform: "youtube", url: "https://www.youtube.com/watch?v=8ZcmTl_1ER8", title: "my favourite song" } ],
+      links: [ { platform: "youtube", url: "https://www.youtube.com/watch?v=_TX2GVbhB-A", title: "my favourite song" } ],
       build: { title: "the bedroom pc", kind: "desktop", summary: "it has a turbo button",
                specs: "pentium iii, 256mb", cooling: "two fans and a dream" }
     },
