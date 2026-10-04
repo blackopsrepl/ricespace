@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RiceSpace — current architecture</title>
+<style>
+:root { color-scheme: dark; --bg:#101013; --panel:#151518; --fg:#e4e4e7; --muted:#92929a; --line:#38383e; --accent:#fbbf24; --grid:#202024; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; }
+main { width:min(100%,2400px); margin:0 auto; padding:34px clamp(16px,3vw,56px) 48px; }
+.kicker,.lane-label,.eyebrow,footer { font:500 11px/1.2 ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); }
+.kicker { color:var(--accent); }
+h1 { margin:12px 0 8px; font-size:clamp(26px,3vw,42px); line-height:1.1; letter-spacing:-.035em; }
+.subtitle { margin:0 0 24px; max-width:900px; color:#b8b8bf; }
+figure { margin:0; border:1px solid var(--line); background:#101013; overflow:auto; }
+svg { display:block; width:100%; min-width:1740px; height:auto; }
+.lane { fill:#121215; fill-opacity:.5; stroke:#5a4a21; stroke-width:1.5; stroke-dasharray:8 6; }
+.node { fill:#151518; stroke:#505057; stroke-width:1.2; }
+.node-accent { stroke:var(--accent); }
+.flow { fill:none; stroke:#a1a1aa; stroke-width:2; marker-end:url(#arrow); }
+.flow-accent { stroke:var(--accent); marker-end:url(#arrow-accent); }
+.flow-hint { stroke-dasharray:6 6; }
+.flow-both { marker-start:url(#arrow-both); }
+.node-title { fill:var(--fg); font:600 15px Inter,ui-sans-serif,system-ui,sans-serif; }
+.node-copy { fill:#b4b4bc; font:12px ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace; }
+.lane-title { fill:var(--accent); font:600 12px ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace; letter-spacing:1.4px; }
+.edge-label { fill:var(--muted); font:11px ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace; }
+.callout { fill:#151518; stroke:#6a5520; stroke-width:1; }
+.notes { display:grid; grid-template-columns:repeat(3,minmax(220px,1fr)); gap:0; margin-top:18px; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+.notes article { padding:18px 20px 20px 0; }
+.notes article+article { border-left:1px solid var(--line); padding-left:20px; }
+.notes h2 { margin:0 0 8px; font:600 11px ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); }
+.notes p { margin:0; color:#b8b8bf; font-size:14px; }
+footer { margin-top:18px; }
+@media(max-width:760px) { .notes { grid-template-columns:1fr; } .notes article+article { border-left:0; border-top:1px solid var(--line); padding-left:0; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="kicker">RiceSpace / system map</p>
+  <h1>A site on a network with no centre.</h1>
+  <p class="subtitle">The hosted Rails site, shared signed-feed core, CLI peers, and the paths that move verified feeds. The site is one node; direct sync does not depend on it.</p>
+  <figure aria-label="RiceSpace current architecture diagram">
+    <svg viewBox="0 0 2220 1000" role="img" aria-labelledby="diagram-title diagram-desc">
+      <title id="diagram-title">RiceSpace current architecture</title>
+      <desc id="diagram-desc">Three horizontal lanes: people and agents use the Rails site; Rails and CLI share signed-feed code and storage; peers discover one another and sync directly or through consenting relays.</desc>
+      <defs>
+        <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse"><path d="M32 0H0V32" fill="none" stroke="#202024" stroke-width=".7"/></pattern>
+        <marker id="arrow" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L9 3.5L0 7Z" fill="#a1a1aa"/></marker>
+        <marker id="arrow-accent" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L9 3.5L0 7Z" fill="#fbbf24"/></marker>
+        <marker id="arrow-both" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto-start-reverse"><path d="M0 0L9 3.5L0 7Z" fill="#a1a1aa"/></marker>
+      </defs>
+      <rect width="2220" height="1000" fill="url(#grid)"/>
+      <rect class="lane" x="24" y="24" width="2172" height="232"/>
+      <rect class="lane" x="24" y="278" width="2172" height="250"/>
+      <rect class="lane" x="24" y="552" width="2172" height="382"/>
+      <text class="lane-title" x="44" y="51">01 / PEOPLE, AGENTS AND THE OPTIONAL SITE</text>
+      <text class="lane-title" x="44" y="305">02 / ONE SIGNED-FEED CORE, TWO CONSUMERS</text>
+      <text class="lane-title" x="44" y="579">03 / PEER DISCOVERY AND TRANSPORT</text>
+      <text class="edge-label" x="670" y="305">Rails and the gem load the same cli/lib/ricespace implementation</text>
+
+      <!-- Flows sit behind their endpoints. Solid = requests/data; dashed amber = discovery/control hints. -->
+      <path class="flow" d="M305 125H700"/>
+      <path class="flow" d="M305 203H700"/>
+      <path class="flow" d="M620 164H700"/>
+      <path class="flow" d="M1125 168H1665"/>
+      <text class="edge-label" x="1335" y="154">site state: accounts · profiles · replica index</text>
+      <path class="flow flow-accent" d="M912 225V260H565V345"/>
+      <text class="edge-label" x="590" y="269">authorized local writes</text>
+      <path class="flow" d="M350 401H392V381H430"/>
+      <path class="flow" d="M350 438H395V474H430"/>
+      <path class="flow" d="M700 381H790V405"/>
+      <path class="flow" d="M700 474H750V450H790"/>
+      <path class="flow" d="M1110 425H1200"/>
+      <path class="flow" d="M1560 425H1650"/>
+      <path class="flow flow-accent" d="M1890 365V225"/>
+      <text class="edge-label" x="1905" y="310">verify → index followed feeds</text>
+
+      <path class="flow" d="M380 700H430"/>
+      <path class="flow flow-hint flow-accent" d="M830 700H910"/>
+      <path class="flow" d="M1250 675H1320"/>
+      <path class="flow" d="M1250 770V850H1832V785"/>
+      <text class="edge-label" x="1430" y="868">friend relay bridge</text>
+      <path class="flow" d="M1250 780V885H2037V785"/>
+      <text class="edge-label" x="1645" y="904">JOIN with one-use pair ticket</text>
+      <path class="flow flow-hint flow-accent" d="M1485 795V835H2180V700H2140"/>
+      <text class="edge-label" x="2045" y="815">ALLOC wait</text>
+      <path class="flow flow-both" d="M1740 718H1650"/>
+      <path class="flow flow-both" d="M1935 760H1928V805H1675V760H1650"/>
+      <text class="edge-label" x="1680" y="825">paired BYTES · end-to-end TLS stays intact</text>
+      <path class="flow flow-hint flow-accent" d="M2037 650V600H630V625"/>
+
+      <!-- Lane 1: the same hosted page is available to people, agents, and the CLI. -->
+      <g>
+        <rect class="node" x="50" y="96" width="255" height="58"/>
+        <text class="node-title" x="66" y="121">Browser</text>
+        <text class="node-copy" x="66" y="141">read, edit, follow, react</text>
+        <rect class="node" x="50" y="174" width="255" height="58"/>
+        <text class="node-title" x="66" y="199">Coding agent</text>
+        <text class="node-copy" x="66" y="219">bearer token · revision checked</text>
+        <rect class="node" x="365" y="135" width="255" height="58"/>
+        <text class="node-title" x="381" y="160">ricespace CLI · site commands</text>
+        <text class="node-copy" x="381" y="180">same HTTP API and token</text>
+        <rect class="node node-accent" x="700" y="110" width="425" height="115"/>
+        <text class="node-title" x="720" y="139">Rails 8 site · one page contract</text>
+        <text class="node-copy" x="720" y="164">HTML / Studio / API v1 · session or bearer auth</text>
+        <text class="node-copy" x="720" y="185">The hosted site is one network node, not the network.</text>
+        <text class="node-copy" x="720" y="206">Profile rendering and editor writes stay on this app.</text>
+        <rect class="node" x="1665" y="110" width="465" height="115"/>
+        <text class="node-title" x="1685" y="139">SQLite · local site database</text>
+        <text class="node-copy" x="1685" y="164">accounts · profiles · followed-feed index</text>
+        <text class="node-copy" x="1685" y="185">Persistent local state; not the P2P transport.</text>
+        <text class="node-copy" x="1685" y="206">The standalone peer does not require this site.</text>
+      </g>
+
+      <!-- Lane 2: Rails and CLI use one record verifier and one on-disk feed format. -->
+      <g>
+        <rect class="node node-accent" x="50" y="375" width="300" height="105"/>
+        <text class="node-title" x="68" y="403">Account + device keys</text>
+        <text class="node-copy" x="68" y="428">offline master authorizes devices</text>
+        <text class="node-copy" x="68" y="450">device key signs records / endpoints</text>
+        <rect class="node" x="430" y="345" width="270" height="72"/>
+        <text class="node-title" x="446" y="372">PeerWrite · Rails</text>
+        <text class="node-copy" x="446" y="395">signs local page actions</text>
+        <rect class="node" x="430" y="438" width="270" height="72"/>
+        <text class="node-title" x="446" y="465">CLI · folder / peer</text>
+        <text class="node-copy" x="446" y="488">signs and transfers feeds</text>
+        <rect class="node node-accent" x="790" y="365" width="320" height="120"/>
+        <text class="node-title" x="808" y="394">Shared Ruby P2P core</text>
+        <text class="node-copy" x="808" y="420">Record · Feed · Sync · TLS</text>
+        <text class="node-copy" x="808" y="442">same verifier in Rails and gem</text>
+        <text class="node-copy" x="808" y="464">stdlib-only CLI implementation</text>
+        <rect class="node" x="1200" y="365" width="360" height="120"/>
+        <text class="node-title" x="1218" y="394">Append-only JSON feed store</text>
+        <text class="node-copy" x="1218" y="420">signed, hash-chained records + assets</text>
+        <text class="node-copy" x="1218" y="442">RICESPACE_STORE or XDG data root</text>
+        <text class="node-copy" x="1218" y="464">CLI and Rails share it when co-located</text>
+        <rect class="node" x="1650" y="365" width="480" height="120"/>
+        <text class="node-title" x="1668" y="394">PeerSync · request-driven import</text>
+        <text class="node-copy" x="1668" y="420">only followed feeds are eligible</text>
+        <text class="node-copy" x="1668" y="442">verify signatures / chain / forks first</text>
+        <text class="node-copy" x="1668" y="464">then index verified records in SQLite</text>
+      </g>
+
+      <!-- Lane 3: discovery locates paths; TLS pins the peer; relays never see feed plaintext. -->
+      <g>
+        <rect class="node node-accent" x="50" y="625" width="330" height="170"/>
+        <text class="node-title" x="68" y="654">RiceSpace peer commands</text>
+        <text class="node-copy" x="68" y="682">peer serve · TLS sync listener</text>
+        <text class="node-copy" x="68" y="704">auto RendezvousAgent per follow</text>
+        <text class="node-copy" x="68" y="726">publishes signed pair-scoped DHT tickets</text>
+        <text class="node-copy" x="68" y="750">peer sync · same existing dial ladder</text>
+        <text class="node-copy" x="68" y="772">no separate ticket command required</text>
+        <rect class="node" x="430" y="625" width="400" height="170"/>
+        <text class="node-title" x="448" y="654">Discovery + NAT</text>
+        <text class="node-copy" x="448" y="682">manual address · ADDR gossip · signed LAN beacon</text>
+        <text class="node-copy" x="448" y="704">STUN observation · UPnP / NAT-PMP TCP mapping</text>
+        <text class="node-copy" x="448" y="738">Mainline DHT: BEP5 routing, BEP44 endpoint slots</text>
+        <text class="node-copy" x="448" y="760">pair-scoped ticket slots + volunteer relay hints</text>
+        <rect class="node node-accent" x="910" y="625" width="340" height="170"/>
+        <text class="node-title" x="928" y="654">Existing dial ladder</text>
+        <text class="node-copy" x="928" y="682">local / manual → DHT endpoint</text>
+        <text class="node-copy" x="928" y="704">→ followed friend relay (opt-in)</text>
+        <text class="node-copy" x="928" y="738">→ open rendezvous ticket</text>
+        <text class="node-copy" x="928" y="760">peer-pin failure → next rung; no downgrade</text>
+        <rect class="node" x="1320" y="625" width="330" height="170"/>
+        <text class="node-title" x="1338" y="654">Remote RiceSpace peer</text>
+        <text class="node-copy" x="1338" y="682">peer serve · feeds remain on that node</text>
+        <text class="node-copy" x="1338" y="704">TLS device-key pin on sync</text>
+        <text class="node-copy" x="1338" y="738">master/device signatures + chain verified</text>
+        <text class="node-copy" x="1338" y="760">replicas carry records, not authority</text>
+        <text class="node-title" x="1720" y="635">Relay paths · consenting operators</text>
+        <rect class="node" x="1740" y="650" width="185" height="135"/>
+        <text class="node-title" x="1754" y="678">Friend relay</text>
+        <text class="node-copy" x="1754" y="704">followed + reachable</text>
+        <text class="node-copy" x="1754" y="726">peer serve --relay</text>
+        <text class="node-copy" x="1754" y="752">off unless opted in</text>
+        <rect class="node node-accent" x="1935" y="650" width="205" height="135"/>
+        <text class="node-title" x="1949" y="678">Open relay · opt-in</text>
+        <text class="node-copy" x="1949" y="704">ALLOC / JOIN / PAIRED</text>
+        <text class="node-copy" x="1949" y="726">opaque TLS BYTES shuttle</text>
+        <text class="node-copy" x="1949" y="752">BEP5 · --relay-open</text>
+      </g>
+
+      <!-- Legend outside all lane boundaries. -->
+      <path class="flow" d="M44 975H104"/>
+      <text class="edge-label" x="116" y="980">content or request path</text>
+      <path class="flow flow-hint flow-accent" d="M365 975H425"/>
+      <text class="edge-label" x="437" y="980">discovery / control hint</text>
+      <text class="edge-label" x="850" y="980">Arrows point with the request or data; relayed sync remains TLS-encrypted end to end.</text>
+    </svg>
+  </figure>
+  <section class="notes" aria-label="Architecture invariants">
+    <article><h2>Trust boundary</h2><p>Device-key-pinned TLS carries sync end to end. Hash-chained feed records are signature-verified before storage or rendering. A relay forwards ciphertext and can still observe timing and size, or drop traffic.</p></article>
+    <article><h2>Discovery is not trust</h2><p>Mainline DHT results are address hints. Endpoint slots and per-follow tickets are signed; pair-scoped ticket slots are public, not encrypted. Relay candidates still have to complete the protocol, and the peer's device pin remains authoritative.</p></article>
+    <article><h2>Availability</h2><p>RiceSpace operates no relay fleet. The checked-in volunteer-relay list is empty. When direct paths fail, a reachable open volunteer relay is required for live sync.</p></article>
+  </section>
+  <footer>Derived from the current Rails routes, shared Ruby P2P implementation, CLI entry points, and internet-networking specification.</footer>
+</main>
+</body>
+</html>
