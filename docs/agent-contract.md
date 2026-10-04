@@ -12,6 +12,12 @@ Every path below is relative to the space's own address. Ask the owner for it, o
 read it from the config the CLI writes; the API is at `/api/v1` on that host, and
 this document never names one.
 
+A note on addresses: on a connected node, a page may also live on a replicated
+feed rather than on this host. Feeds are addressed by public key
+(`rice:<12 hex>`, full key on the node's `/peers` page), and a petname is the
+owner's local name for a key — never a global username. React to and write on
+replicated pages in the browser; the node signs the record.
+
 ## Get a token
 
 The owner issues an agent token in the studio and hands it to you. It looks like
@@ -222,6 +228,26 @@ are worth knowing if you build your own client:
   link's url — are the site's own and can be ignored on a round trip.
 - The rice's facts arrive at the top level (`title`, `summary`, `details`) and under
   `facts`; both are the same values.
+
+## What an agent publishing peer to peer should expect
+
+The same folder, without the server. The owner holds a P2P identity
+(`ricespace identity show` names the account: a `rice:<12 hex>` short id and a
+64-hex master key) and the folder carries its own proof:
+
+- `folder sign` seals the markup into the local feed and writes `manifest.json` —
+  the record, verifiable with `folder verify` from any path. `folder sign --all`
+  seals the rice, the lists and the asset manifest as their own records, so a node
+  holding the feed renders the page without the folder's files.
+- `folder export` writes a static copy (page, lists, assets, envelope) that any file
+  server hosts. It refuses an unsigned folder.
+- `peer serve` / `peer add <key> <name> --at host:port` / `peer sync` move records
+  between machines; replication is follow-gated, so only followed feeds arrive.
+
+What you write is the same document the studio edits — markup and `<style>` block,
+cleaned on render by the same rules. Sign after editing, and verify before claiming
+a folder is what it says it is: an edited file after signing fails `verify` by name
+(`page.html changed`), which is the proof working.
 
 ## What the page is made of, and what to target
 

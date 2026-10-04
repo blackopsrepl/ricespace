@@ -119,6 +119,23 @@ you like a page.
   the whole product. They deserve a review pass that is not the author's.
 - **Export a page.** If the page is really yours, you should be able to take it out
   — the document, the stylesheet and the pictures, as files.
+  **Done, as the sneakernet transport:** `ricespace folder export` writes a static
+  copy with its signed envelope, verifiable with `folder verify` from any path —
+  and `docs/p2p-spec.md` is the protocol those files speak.
+
+- **A page without a server.** Every page lives on somebody's host, and every
+  account is a row in somebody's database — a page whose pitch is "yours" is still
+  a tenant. **Done:** an account is Ed25519 (`identity create/show/backup`); the
+  folder seals into a signed feed (`folder sign`, `--all` for page+rice+lists+assets)
+  carrying its own proof (`manifest.json`, checked by `folder verify`, carried by
+  `folder export` to any static host); machines sync over plain TCP with follow-gated
+  replication (`peer serve/add/list/remove/sync/keygen`) plus a LAN beacon, no DHT,
+  no relays. The app is a node: `/peers` renders verified replicas read-only through
+  the same cleaners, ranks them by the same rule, and signs a linked account's
+  reactions and comments as its authorised device. Keys are managed the whole way
+  down (`identity device-add/device-revoke`, social recovery with tenure, tombstone
+  goodbyes, fork-as-compromised). `docs/p2p-spec.md` states the protocol; the README
+  walks the user through it and the operator through running a node.
 
 ## Licence
 
