@@ -128,14 +128,17 @@ you like a page.
   a tenant. **Done:** an account is Ed25519 (`identity create/show/backup`); the
   folder seals into a signed feed (`folder sign`, `--all` for page+rice+lists+assets)
   carrying its own proof (`manifest.json`, checked by `folder verify`, carried by
-  `folder export` to any static host); machines sync over plain TCP with follow-gated
-  replication (`peer serve/add/list/remove/sync/keygen`) plus a LAN beacon, no DHT,
-  no relays. The app is a node: `/peers` renders verified replicas read-only through
-  the same cleaners, ranks them by the same rule, and signs a linked account's
-  reactions and comments as its authorised device. Keys are managed the whole way
-  down (`identity device-add/device-revoke`, social recovery with tenure, tombstone
-  goodbyes, fork-as-compromised). `docs/p2p-spec.md` states the protocol; the README
-  walks the user through it and the operator through running a node.
+  `folder export` to any static host); machines sync over pinned TLS with follow-gated
+  replication (`peer serve/add/list/remove/sync/keygen/bootstrap`) plus push-on-connect
+  (NATed nodes publish through the connection they open, into a capped quarantine),
+  address gossip with unfollowed hints, and a signed LAN beacon — no DHT, no relays.
+  Tallies are last-writer-wins per (author, target), withdrawals dropped. The app is a
+  node: `/peers` renders verified replicas read-only through the same cleaners, ranks
+  them by the same rule, and signs a linked account's reactions and comments as its
+  authorised device. Keys are managed the whole way down (`identity join/rotate/recover/
+  endorse/device-add/device-revoke`, scrypt envelopes, tombstone goodbyes,
+  fork-as-compromised). `docs/p2p-spec.md` states the protocol and the threat model;
+  the README walks the user through it and the operator through running a node.
 
 ## Licence
 

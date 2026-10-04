@@ -138,6 +138,7 @@ TLS between workstations that opted in, each pinned to keys they already know.
     ricespace peer serve                   # answer sync requests (port 7676, TLS)
     ricespace peer add <key> ron --at host:port   # follow somebody
     ricespace peer sync                    # pull your follows up to date, pinned to their keys
+    ricespace peer bootstrap               # first contact: follow the shipped seeds
 
 Your address is your public key, shown as `rice:` plus 12 characters. Names are petnames —
 `ron` is who *you* call ron, an entry in your own friends list mapping a name to a key, and

@@ -228,10 +228,12 @@ What we assume an attacker can do, and what stops them:
 - **Steal the node secret.** Total for that node: it signs for every linked
   account. The file is refused unless mode 0600 or stricter. Operators who
   share one node-device across accounts accept this blast radius knowingly.
-- **Spoof the LAN beacon.** Possible today: UDP 7677 carries no signature, so
-  a fake announcement points victims at attacker addresses. Contained: the
-  TLS pin still has to pass, and records still have to verify — worst case is
-  eclipse plus metadata, never forgery. Signed beacons are the outstanding fix.
+- **Spoof the LAN beacon.** Signed: every announcement carries the announcer's
+  device key, a timestamp and a signature; fakes and replays older than 60 s
+  never enter the map. Unsigned legacy beacons are ignored, not grandfathered.
+  Residual: an attacker with a valid device key can still announce a wrong
+  address — the TLS pin and record signatures contain it to eclipse plus
+  metadata, never forgery.
 - **Social-engineer a recovery.** Slowed, not stopped: only friends with
   tenure (5 of the owner's records) vote, and the successor announces itself
   (a recovery signed by the old master is refused). A patient attacker who
