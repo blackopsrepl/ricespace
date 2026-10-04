@@ -15,7 +15,8 @@ module RiceSpace
     RATE_COMMANDS = %w[show set].freeze
     FOLDER_COMMANDS = %w[clone push preview watch sign verify export goodbye prune].freeze
     IDENTITY_COMMANDS = %w[create join show backup device-add device-revoke rotate recover endorse prove].freeze
-    PEER_COMMANDS = %w[serve address add list remove sync keygen bootstrap].freeze
+    PEER_COMMANDS = %w[serve address add list remove sync keygen bootstrap status].freeze
+    NET_COMMANDS = %w[up down wait].freeze
 
     # The one sentence a person is given when they type something the CLI cannot do.
     HELP = <<~TEXT
@@ -63,7 +64,7 @@ module RiceSpace
         identity endorse <feed> <seq> <prev> <new-master>
                                    Vouch for a friend's recovery, as their friend
         identity prove '<challenge>'  Sign the studio's ownership challenge with your master
-        peer serve                 Answer sync requests (this machine's server)
+        peer serve [--relay|--relay-open]  Answer sync requests (this machine's server)
         peer address [--host HOST] [--port PORT]  Check and print a copy-paste share command
         peer add <key> <name>      Follow somebody: peer add <hex> ron --at host:port
         peer list                  Who you follow, and where they were last seen
@@ -71,6 +72,10 @@ module RiceSpace
         peer sync [name|key]       Pull follows up to date
         peer keygen                A device key for a node operator
         peer bootstrap             Follow the shipped seeds, then sync
+        peer status [name|key]     Discovery state, path and reachability per follow
+        net up                     Join discovery: DHT, NAT probe, publish endpoint
+        net down                   Leave discovery: release mappings, stop publishing
+        net wait <who> --at relay  Wait at an open relay for one follow (unreachable meets unreachable)
 
       Options
         -H, --url URL              Where the space is (env RICESPACE_URL)
@@ -148,6 +153,7 @@ module RiceSpace
       when "folder" then folder_command
       when "identity" then identity_command
       when "peer" then peer_command
+      when "net" then net_command
       else
         raise UsageError, "unknown command #{command.inspect} — run `ricespace help`"
       end
@@ -684,9 +690,184 @@ module RiceSpace
       when "sync" then peer_sync
       when "keygen" then peer_keygen
       when "bootstrap" then peer_bootstrap
+      when "status" then peer_status
       else
         raise UsageError, "unknown peer command #{sub.inspect} — one of: #{PEER_COMMANDS.join(", ")}"
       end
+    end
+
+    def net_command
+      sub = @argv.shift
+      raise UsageError, "net needs one of: #{NET_COMMANDS.join(", ")}" if sub.nil?
+
+      case sub
+      when "up" then net_up
+      when "down" then net_down
+      when "wait" then net_wait
+      else
+        raise UsageError, "unknown net command #{sub.inspect} — one of: #{NET_COMMANDS.join(", ")}"
+      end
+    end
+
+    # Join internet discovery: bootstrap the DHT, characterise the NAT,
+    # publish our endpoint slot. Prints what was learned and how.
+    def net_up
+      identity = p2p_identity
+      port = (option("--port") || ENV["RICESPACE_PEER_PORT"] || P2p::Sync::DEFAULT_PORT).to_i
+      publish = !@argv.include?("--no-publish")
+      passphrase = ENV["RICESPACE_PASSPHRASE"] || P2p::Keys.ask_passphrase("the device passphrase")
+      private_hex = begin
+        identity.unlock_device(passphrase)
+      rescue P2p::Error => error
+        raise UsageError, error.message
+      end
+
+      Ui.wordmark
+      dht = P2p::Net::Dht.new
+      begin
+        answered = dht.bootstrap
+        Ui.key_value("discovery", "#{answered} DHT router(s) answered")
+      rescue P2p::Error => error
+        Ui.key_value("discovery", "unreachable (#{error.message})")
+        Ui.key_value("note", "LAN sync and manual addresses still work")
+        return
+      ensure
+        dht.close rescue nil
+      end
+
+      nat = P2p::Net::Nat.characterise(port: port)
+      Ui.key_value("nat", nat.label)
+      Ui.key_value("how", nat.detail)
+      external = nat.external ? "#{nat.external["host"]}:#{nat.external["port"]}" : nil
+
+      if publish
+        addrs = [ external, "0.0.0.0:#{port}" ].compact.reject { |addr| addr.start_with?("0.0.0.0") }
+        if addrs.empty?
+          Ui.key_value("published", "nothing — no observed address; serving still works for outbound sync")
+        else
+          record = P2p::Net::Endpoint.build(node: identity.master_public, device: identity.device_public,
+            addrs: addrs, sign_with: private_hex)
+          accepted = publish_slot(identity, record)
+          P2p::Net::Discovery.load.note_published if accepted.positive?
+          Ui.key_value("published", "#{accepted} DHT node(s) hold our endpoint (#{addrs.join(", ")})")
+        end
+      else
+        Ui.key_value("published", "skipped (--no-publish)")
+      end
+      Ui.key_value("privacy", "slots expose addrs + keys, never feeds or follows — see peer status --privacy")
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    def publish_slot(identity, record)
+      packed = P2p::Net::Endpoint.pack(record)
+      dht = P2p::Net::Dht.new
+      begin
+        dht.bootstrap
+        dht.publish(identity.device_public, identity.unlock_device(
+          ENV["RICESPACE_PASSPHRASE"] || P2p::Keys.ask_passphrase("the device passphrase")), packed)
+      rescue P2p::Error
+        0
+      ensure
+        dht.close rescue nil
+      end
+    end
+
+    def net_down
+      Ui.wordmark
+      Ui.ok("Left discovery — republication stops when peer serve stops.")
+      Ui.key_value("note", "DHT slots expire within 2 h; mappings release on serve exit")
+    end
+
+    # Wait at an open rendezvous relay for one follow: ALLOC a ticket,
+    # publish it in our own endpoint slot, serve the spliced session when
+    # they JOIN. For the unreachable node that wants to be found.
+    def net_wait
+      identity = p2p_identity
+      peers = P2p::Peers.load(Config::DIRECTORY)
+      who = @argv.reject { |arg| arg.start_with?("--") }.first
+      raise UsageError, "net wait needs who is coming: net wait <name|key> --at relay:port" if who.nil?
+      pub = resolve_follow(peers, who) || (P2p::Keys.valid_public?(who) ? who : nil)
+      raise UsageError, "not following #{who.inspect} — peer add it first" if pub.nil?
+      relay_addr = option("--at") || shipped_relay
+      raise UsageError, "no rendezvous relay — pass --at relay:port" if relay_addr.nil?
+
+      host, port = relay_addr.split(":", 2)
+      passphrase = ENV["RICESPACE_PASSPHRASE"] || P2p::Keys.ask_passphrase("the device passphrase")
+      private_hex = begin
+        identity.unlock_device(passphrase)
+      rescue P2p::Error => error
+        raise UsageError, error.message
+      end
+
+      Ui.wordmark
+      control, secret = P2p::Net::Relay.alloc(host, port.to_i || P2p::Sync::DEFAULT_PORT,
+        identity: identity, peers: peers, private_hex: private_hex,
+        relay_pin: :none, store_root: P2p::Feed.root)
+      Ui.key_value("relay", relay_addr)
+      Ui.key_value("ticket", "#{secret[0, 8]}… (single-use, 5 min)")
+
+      # Signal through our own slot: ticket naming them, at this relay.
+      record = P2p::Net::Endpoint.build(node: identity.master_public, device: identity.device_public,
+        addrs: [], rv: [ relay_addr ],
+        ticket: { "relay" => relay_addr, "secret" => secret, "peer" => pub },
+        sign_with: private_hex)
+      accepted = publish_slot(identity, record)
+      Ui.key_value("signalled", "#{accepted} DHT node(s) hold the ticket for #{P2p::Names.short(pub)}")
+
+      Ui.notice("Waiting for #{P2p::Names.short(pub)} — Ctrl-C to stop.")
+      session = P2p::Net::Relay.await_peer(control, secret, identity: identity,
+        peers: peers, private_hex: private_hex, target_feed: pub,
+        target_pin: dial_device_key(pub) || pub, store_root: P2p::Feed.root)
+      Ui.ok("They arrived — serving.")
+      session.serve_loop(peers: peers, store_root: P2p::Feed.root)
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    def shipped_relay
+      P2p::Net::Relays.list.first&.fetch("addr", nil)
+    end
+
+    # Per-follow discovery state: path, reachability, last sync.
+    def peer_status
+      identity = p2p_identity
+      peers = P2p::Peers.load(Config::DIRECTORY)
+      if @argv.include?("--privacy")
+        Ui.wordmark
+        Ui.notice("What DHT endpoint slots expose, honestly:")
+        Ui.key_value("public", "master key, device key, dial addresses, relay addresses, timestamps")
+        Ui.key_value("never", "feed contents, follow lists, petnames, sequence numbers")
+        Ui.key_value("visible to", "anyone who derives the slot target — discovery metadata is connection metadata")
+        return
+      end
+      who = @argv.reject { |arg| arg.start_with?("--") }.first
+      pubs = if who
+        pub = resolve_follow(peers, who) || (P2p::Keys.valid_public?(who) ? who : nil)
+        raise UsageError, "not following #{who.inspect}" if pub.nil?
+
+        [ pub ]
+      else
+        peers.follows.keys
+      end
+
+      Ui.wordmark
+      Ui.key_value("you", identity.short_id)
+      state = sync_state
+      pubs.each do |pub|
+        name = peers.petname_for(pub)
+        label = name.empty? ? P2p::Names.short(pub) : "#{name} [#{P2p::Names.short_pair(pub)}]"
+        entry = peers.endpoint_for(pub)
+        last = state[pub]
+        parts = []
+        parts << "path=#{last ? last["path"] : "never synced"}"
+        parts << "last=#{last ? Time.at(last["at"]).utc.strftime("%Y-%m-%d %H:%M UTC") : "never"}"
+        parts << "addrs=#{(Array(entry["addrs"]) + peers.addrs_for(pub)).uniq.size}"
+        parts << "slot=#{entry["ep_at"] ? "#{((Time.now.to_i - entry["ep_at"]) / 60).to_i}m old" : "none"}"
+        Ui.key_value(label, parts.join(" · "))
+      end
+    rescue P2p::Error => error
+      raise UsageError, error.message
     end
 
     # A fresh device key for a node operator: the public half goes on the
@@ -728,6 +909,11 @@ module RiceSpace
       peers = P2p::Peers.load(Config::DIRECTORY)
       port = (option("--port") || ENV["RICESPACE_PEER_PORT"] || P2p::Sync::DEFAULT_PORT).to_i
       lan = !@argv.include?("--no-lan")
+      relay = if @argv.include?("--relay-open")
+        P2p::Net::Relay::Registry.new(open: true)
+      elsif @argv.include?("--relay")
+        P2p::Net::Relay::Registry.new
+      end
       passphrase = ENV["RICESPACE_PASSPHRASE"] || P2p::Keys.ask_passphrase("the device passphrase")
       private_hex = begin
         identity.unlock_device(passphrase)
@@ -739,10 +925,11 @@ module RiceSpace
       Ui.notice("Serving #{identity.short_id} on port #{port} — Ctrl-C to stop.")
       Ui.key_value("follows", peers.follows.size.to_s)
       Ui.key_value("lan", lan ? "announcing + listening" : "off")
+      Ui.key_value("relay", relay ? (relay.open? ? "OPEN rendezvous for strangers by ticket (capped, content-opaque)" : "bridging for consenting callers (capped, content-opaque)") : "off — pass --relay to bridge, --relay-open for rendezvous")
       Ui.key_value("wire", "TLS, pinned to known keys — strangers fail closed")
 
       P2p::Sync.serve(port: port, identity: identity, peers: peers,
-        private_hex: private_hex, lan: lan).run
+        private_hex: private_hex, lan: lan, relay: relay).run
     rescue P2p::Error => error
       raise UsageError, error.message
     end
@@ -855,27 +1042,32 @@ module RiceSpace
       raise UsageError, error.message
     end
 
+    # The dial ladder per follow: manual --at, then stored addrs, then DHT
+    # endpoint slots, then relay bridges. A pin failure fails the rung, never
+    # the ladder — and never falls back to unauthenticated.
     def peer_sync
       identity = p2p_identity
       peers = P2p::Peers.load(Config::DIRECTORY)
       who = @argv.reject { |arg| arg.start_with?("--") }.first
 
       dials = peers.dial_list
-      targets = if who
+      pubs = if who
         pub = resolve_follow(peers, who) || (P2p::Keys.valid_public?(who) ? who : nil)
         raise UsageError, "not following #{who.inspect} — peer add it first" if pub.nil?
 
-        # Every address held for this feed, plus every other follow's address
-        # (replicas: a mutual may serve the owner-offline feed).
-        dials.select { |candidate, _, _| candidate == pub } +
-          dials.reject { |candidate, _, _| candidate == pub }.map { |_, addr, via| [ pub, addr, via ] }
+        [ pub ]
       else
-        dials
+        peers.follows.keys
+      end
+
+      dht = sync_dht
+      targets = pubs.flat_map do |pub|
+        ladder_for(peers, pub, dials, dht, own_pub: identity.master_public)
       end
 
       if targets.empty?
         Ui.wordmark
-        Ui.notice("Nobody to sync with — no addresses. peer add --at, or meet on LAN.")
+        Ui.notice("Nobody to sync with — no addresses. peer add --at, meet on LAN, or run net up.")
         return
       end
 
@@ -891,23 +1083,34 @@ module RiceSpace
       pushed_total = 0
       learned_total = 0
       shown = {}
-      targets.each do |pub, addr, via|
+      done = {}
+      targets.each do |pub, addr, via, kind|
+        next if done[pub]
+
         host, port = addr.split(":", 2)
         begin
-          # Pinned to the serving node's key: the cert must carry a key of
-          # the account at this address, or the session dies before HELLO.
-          # A dial entry pointing at an impostor fails here.
-          device_key = dial_device_key(via)
-          gained = P2p::Sync.pull(host, port || P2p::Sync::DEFAULT_PORT,
-            identity: identity, peers: peers, private_hex: private_hex,
-            expected_key: device_key || via)
+          gained = if kind == :relay
+            dial_via_relay(pub, addr, via, identity, peers, private_hex)
+          elsif kind == :rendezvous
+            dial_via_rendezvous(pub, via, identity, peers, private_hex)
+          else
+            # Pinned to the serving node's key: the cert must carry a key of
+            # the account at this address, or the session dies before HELLO.
+            # A dial entry pointing at an impostor fails here.
+            device_key = kind == :dht ? via[:pin] : dial_device_key(via)
+            P2p::Sync.pull(host, port || P2p::Sync::DEFAULT_PORT,
+              identity: identity, peers: peers, private_hex: private_hex,
+              expected_key: device_key || (kind == :dht ? pub : via))
+          end
           pushed_total += gained.delete("!pushed").to_i
           learned_total += gained.delete("!addrs").to_i
           count = gained.values.sum
           total += count
           shown[pub] = (shown[pub] || 0) + count
+          done[pub] = true
+          note_sync_path(pub, kind, addr)
         rescue P2p::Error => error
-          shown[pub] = shown.fetch(pub, "unreachable (#{error.message})")
+          shown[pub] = shown.fetch(pub, "#{path_word(kind)} unreachable (#{error.message})")
         end
       end
       shown.each do |pub, count|
@@ -918,6 +1121,125 @@ module RiceSpace
       Ui.ok("Synced #{total} new records.") unless total.zero? && pushed_total.zero?
     rescue P2p::Error => error
       raise UsageError, error.message
+    ensure
+      dht&.close
+    end
+
+    # Manual addrs, then every other follow's addr as replica candidates,
+    # then DHT resolution (manual always wins: it leads the ladder).
+    def ladder_for(peers, pub, dials, dht, own_pub: nil)
+      manual = dials.select { |candidate, _, _| candidate == pub }
+      replicas = dials.reject { |candidate, _, _| candidate == pub }.map { |_, addr, via| [ pub, addr, via, :replica ] }
+      ladder = manual.map { |candidate, addr, via| [ candidate, addr, via, :manual ] } + replicas
+      return ladder if dht.nil?
+
+      begin
+        P2p::Net::Discovery.resolve(peers, pub, dht: dht, own_pub: own_pub).each do |candidate|
+          next if candidate[:via] != :rendezvous &&
+            ladder.any? { |_, addr, _, _| addr == candidate[:addr] }
+
+          if candidate[:via] == :relay
+            ladder << [ pub, candidate[:addr],
+              { pin: candidate[:pin], relay_feed: candidate[:relay_feed] }, :relay ]
+          elsif candidate[:via] == :rendezvous
+            ladder << [ pub, candidate[:addr],
+              { pin: candidate[:pin], ticket: candidate[:ticket] }, :rendezvous ]
+          else
+            ladder << [ pub, candidate[:addr], { pin: candidate[:pin] }, :dht ]
+          end
+        end
+      rescue P2p::Error
+        nil
+      end
+      ladder
+    end
+
+    def path_word(kind)
+      case kind
+      when :manual then "manual address"
+      when :replica then "replica"
+      when :dht then "discovered address"
+      when :relay then "relay"
+      when :rendezvous then "rendezvous"
+      else "address"
+      end
+    end
+
+    # JOIN the ticket the follow signalled: the relay is a stranger, so its
+    # control leg is unpinned — authentication is end-to-end (target pin)
+    # plus the ticket secret itself, which only the follow's slot gave us.
+    def dial_via_rendezvous(pub, info, identity, peers, private_hex)
+      ticket = info[:ticket]
+      host, port = ticket["relay"].split(":", 2)
+      session = P2p::Net::Relay.join(host, port.to_i || P2p::Sync::DEFAULT_PORT,
+        ticket["secret"], identity: identity, peers: peers, private_hex: private_hex,
+        target_feed: pub, target_pin: info[:pin], relay_pin: :none,
+        store_root: P2p::Feed.root)
+      begin
+        pushed = session.push_own
+        learned = session.exchange_addrs(peers: peers)
+        gained = session.pull(peers: peers)
+        gained["!pushed"] = pushed if pushed.positive?
+        gained["!addrs"] = learned.size if learned.any?
+        gained
+      ensure
+        session.close
+      end
+    end
+
+    # One DHT client per sync run, bootstrapped once. Silent when discovery
+    # is unreachable — the ladder simply has fewer rungs.
+    def sync_dht
+      dht = P2p::Net::Dht.new
+      dht.bootstrap
+      dht
+    rescue P2p::Error
+      nil
+    end
+
+    def dial_via_relay(pub, relay_addr, info, identity, peers, private_hex)
+      host, port = relay_addr.split(":", 2)
+      relay_pin = dial_device_key(info[:relay_feed]) || info[:relay_feed]
+      session = P2p::Net::Relay.dial(host, port.to_i || P2p::Sync::DEFAULT_PORT,
+        identity: identity, peers: peers, private_hex: private_hex,
+        target_feed: pub, target_pin: info[:pin], relay_pin: relay_pin)
+      begin
+        pushed = session.push_own
+        learned = session.exchange_addrs(peers: peers)
+        gained = session.pull(peers: peers)
+        gained["!pushed"] = pushed if pushed.positive?
+        gained["!addrs"] = learned.size if learned.any?
+        gained
+      ensure
+        session.close
+      end
+    end
+
+    def note_sync_path(pub, kind, addr)
+      state = sync_state
+      state[pub] = { "path" => kind.to_s, "addr" => addr, "at" => Time.now.to_i }
+      save_sync_state(state)
+    end
+
+    def sync_state
+      file = Pathname.new(Config::DIRECTORY.to_s).join("sync_state.json")
+      return {} unless file.file?
+
+      JSON.parse(file.read).then { |data| data.is_a?(Hash) ? data : {} }
+    rescue JSON::ParserError
+      {}
+    end
+
+    def save_sync_state(state)
+      dir = Pathname.new(Config::DIRECTORY.to_s)
+      dir.mkpath
+      file = dir.join("sync_state.json")
+      temp = Pathname.new("#{file}.new")
+      temp.write(JSON.pretty_generate(state) + "\n")
+      temp.chmod(0o600)
+      temp.rename(file)
+    rescue SystemCallError
+      nil
     end
 
     # The device key to pin when dialing an account's own address: the live
