@@ -13,7 +13,7 @@ module RiceSpace
       "rate" => %w[show set],
       "folder" => %w[clone push preview watch sign verify export goodbye prune],
       "identity" => %w[create join show backup device-add device-revoke rotate recover endorse],
-      "peer" => %w[serve add list remove sync keygen]
+      "peer" => %w[serve add list remove sync keygen bootstrap]
     }.freeze
 
     GLOBAL_FLAGS = %w[--url --token --json --no-colour --quiet --help --version].freeze

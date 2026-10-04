@@ -147,13 +147,24 @@ class PagesController < ApplicationController
     # first, ties to the better-liked. A peer's tally is its page plus
     # everything posted on it, because that is how every page counts.
     def ranked_peers
-      tallies = Hash.new { |hash, key| hash[key] = { likes: 0, dislikes: 0 } }
-      PeerRecord.where(kind: "reaction").each do |record|
+      # Same last-writer-wins as Peer#current_reactions: one opinion per
+      # (author, target), withdrawals dropped. The ranking cannot disagree
+      # with the page about what people think.
+      latest = {}
+      PeerRecord.where(kind: "reaction").order(:id).each do |record|
         body = record.parsed_body
         feed = body["target_feed"]
-        next if feed.blank?
+        target = body["target_hash"]
+        next if feed.blank? || target.blank?
 
-        if body["opinion"] == "dislike"
+        latest[[ record.author_pubkey, target ]] = [ feed, body["opinion"] ]
+      end
+
+      tallies = Hash.new { |hash, key| hash[key] = { likes: 0, dislikes: 0 } }
+      latest.each_value do |feed, opinion|
+        next if opinion == "none"
+
+        if opinion == "dislike"
           tallies[feed][:dislikes] += 1
         else
           tallies[feed][:likes] += 1

@@ -473,6 +473,98 @@ class P2pSyncTest < Minitest::Test
     assert Keys.passphrase_advice("short")
   end
 
+  def test_a_natted_node_publishes_through_its_outbound_connection
+    dir_pub, id_pub = make_node("pub5")
+    dir_nat, id_nat = make_node("nat5")
+    store_pub = File.join(dir_pub, "feeds")
+    store_nat = File.join(dir_nat, "feeds")
+
+    publish(id_pub, store_pub, "public here")
+    secret = id_nat.unlock_master("x")
+    nat_feed = Feed.new(id_nat.master_public, root: store_nat)
+    nat_feed.append(Record.build(author: id_nat.master_public, signer: id_nat.master_public, seq: 1,
+      prev: Record::GENESIS_PREV, kind: "device-add", body: { "device" => id_nat.device_public },
+      sign_with: secret))
+    nat_feed.append(Record.build(author: id_nat.master_public, signer: id_nat.device_public, seq: 2,
+      prev: nat_feed.prev_hash, kind: "page", body: { "document" => "natted here" },
+      sign_with: device_secret(id_nat)))
+
+    # The public node never dials the natted one and never follows it.
+    peers_pub = Peers.new(path: Pathname.new(dir_pub).join("peers.json"), follows: {})
+    peers_nat = Peers.new(path: Pathname.new(dir_nat).join("peers.json"), follows: {})
+    peers_nat.add(id_pub.master_public, petname: "pub", addrs: [ "127.0.0.1:18016" ])
+    server = serve_on(18016, id_pub, store_pub)
+    thread = Thread.new { server.run }
+    sleep 0.5
+
+    begin
+      gained = pull_from("127.0.0.1", 18016, id_nat, peers_nat, store_nat, expected: id_pub.device_public)
+
+      assert_equal 2, gained["!pushed"], "the natted node's records land via push"
+      result = Feed.new(id_nat.master_public, root: store_pub).verify
+
+      assert result.ok?, result.errors.inspect
+      assert_equal 2, result.state["seq"]
+    ensure
+      thread.kill
+    end
+  end
+
+  def test_gossip_teaches_an_address_and_hints_stay_unfollowed
+    dir_a, id_a = make_node("ga")
+    dir_b, id_b = make_node("gb")
+    dir_c, id_c = make_node("gc")
+    store_a = File.join(dir_a, "feeds")
+
+    publish(id_b, File.join(dir_b, "feeds"), "bee here")
+    publish(id_c, File.join(dir_c, "feeds"), "cee here")
+
+    # B follows C and knows its address; A follows only B.
+    peers_b = Peers.new(path: Pathname.new(dir_b).join("peers.json"), follows: {})
+    peers_b.add(id_c.master_public, petname: "cee", addrs: [ "127.0.0.1:18018" ])
+    peers_a = Peers.new(path: Pathname.new(dir_a).join("peers.json"), follows: {})
+    peers_a.add(id_b.master_public, petname: "bee", addrs: [ "127.0.0.1:18017" ])
+
+    server = serve_on(18017, id_b, File.join(dir_b, "feeds"), peers: peers_b)
+    thread = Thread.new { server.run }
+    sleep 0.5
+
+    begin
+      gained = pull_from("127.0.0.1", 18017, id_a, peers_a, store_a, expected: id_b.device_public)
+
+      assert_equal 1, gained["!addrs"], "C's address arrives via B's gossip"
+      hints = peers_a.hints
+      assert_includes hints.keys, id_c.master_public
+      refute peers_a.follow?(id_c.master_public), "a hint is not a follow"
+    ensure
+      thread.kill
+    end
+  end
+
+  def test_signed_beacons_verify_and_unsigned_ones_die
+    keypair = Keys.generate
+    beacon = Sync::LanBeacon.new(port: 7676, node: keypair[:public_hex], private_hex: keypair[:private_hex])
+    wire = JSON.generate(beacon.send(:announcement))
+
+    node, _, port = Sync::LanBeacon.verify_announcement(wire)
+    assert_equal keypair[:public_hex], node
+    assert_equal 7676, port
+
+    forged = JSON.generate({ "node" => keypair[:public_hex], "port" => 7676, "at" => Time.now.to_i })
+    assert_equal [ nil, nil, nil ], Sync::LanBeacon.verify_announcement(forged)
+
+    stale = JSON.generate({ "node" => keypair[:public_hex], "port" => 7676, "at" => Time.now.to_i - 3600,
+      "device" => keypair[:public_hex], "sig" => "00" * 64 })
+    assert_equal [ nil, nil, nil ], Sync::LanBeacon.verify_announcement(stale)
+  end
+
+  def test_seeds_list_and_bootstrap_follows_them
+    seeds = RiceSpace::P2p::Seeds.list
+
+    assert seeds.any?
+    assert seeds.all? { |seed| Keys.valid_public?(seed["key"]) }
+  end
+
   private
 
   def make_node(name)
@@ -489,9 +581,9 @@ class P2pSyncTest < Minitest::Test
   end
 
   # Thread the device secrets through the old tests: the wire is TLS now.
-  def serve_on(port, identity, store)
-    Sync::Server.new(port: port, identity: identity,
-      peers: Peers.new(path: Pathname.new(Dir.mktmpdir).join("p.json"), follows: {}),
+  def serve_on(port, identity, store, peers: nil)
+    peers ||= Peers.new(path: Pathname.new(Dir.mktmpdir).join("p.json"), follows: {})
+    Sync::Server.new(port: port, identity: identity, peers: peers,
       private_hex: device_secret(identity), store_root: store, lan: false)
   end
 

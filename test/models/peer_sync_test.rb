@@ -50,6 +50,43 @@ class PeerSyncTest < ActiveSupport::TestCase
     assert_equal 1, Peer.find_by(pubkey: owner[:public_hex]).score
   end
 
+  test "a changed mind counts once, and a withdrawal counts zero" do
+    owner = Keys.generate
+    reactor = Keys.generate
+    page = build(owner, owner, 1, Record::GENESIS_PREV, "page", { "document" => "x" })
+    target = Record.hash_of(page)
+    like = build(reactor, reactor, 1, Record::GENESIS_PREV, "reaction",
+      { "target_feed" => owner[:public_hex], "target_hash" => target, "opinion" => "like" })
+    change = build(reactor, reactor, 2, Record.hash_of(like), "reaction",
+      { "target_feed" => owner[:public_hex], "target_hash" => target, "opinion" => "dislike" })
+
+    PeerSync.import_feed(owner[:public_hex], [ page ])
+    PeerSync.import_feed(reactor[:public_hex], [ like, change ])
+
+    assert_equal(-1, Peer.find_by(pubkey: owner[:public_hex]).score)
+
+    away = build(reactor, reactor, 3, Record.hash_of(change), "reaction",
+      { "target_feed" => owner[:public_hex], "target_hash" => target, "opinion" => "none" })
+    PeerSync.import_feed(reactor[:public_hex], [ like, change, away ])
+
+    assert_equal 0, Peer.find_by(pubkey: owner[:public_hex]).score
+  end
+
+  test "a loose node secret refuses to sign" do
+    Dir.mktmpdir do |dir|
+      file = File.join(dir, "node_secret")
+      File.write(file, "0" * 64)
+      File.chmod(0o644, file)
+      ENV["RICESPACE_NODE_SECRET_FILE"] = file
+
+      assert_nil PeerWrite.node_device_public
+      assert_not PeerWrite.authorized?(User.create!(username: "loose", email_address: "loose@example.com",
+        password: "correct horse battery"))
+    ensure
+      ENV.delete("RICESPACE_NODE_SECRET_FILE")
+    end
+  end
+
   private
 
   def build(author, signer, seq, prev, kind, body)

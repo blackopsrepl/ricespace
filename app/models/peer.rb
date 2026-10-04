@@ -44,14 +44,27 @@ class Peer < ApplicationRecord
 
   # Score from replicated reactions plus local ones: likes minus dislikes over
   # every reaction record aimed at this feed's page or its posts.
+  # Last-writer-wins per (author, target): a re-react appends a record, so the
+  # tally takes each author's newest opinion per target hash and drops `none`
+  # (the withdrawal). Without this a changed mind counts twice.
   def score
-    reactions.sum { |reaction| reaction["opinion"] == "dislike" ? -1 : 1 }
+    current_reactions.sum { |reaction| reaction["opinion"] == "dislike" ? -1 : 1 }
   end
 
   def reactions
-    PeerRecord.where(kind: "reaction").select do |record|
-      record.parsed_body["target_feed"] == pubkey
-    end.map(&:parsed_body)
+    current_reactions
+  end
+
+  def current_reactions
+    latest = {}
+    PeerRecord.where(kind: "reaction").order(:id).each do |record|
+      body = record.parsed_body
+      next unless body["target_feed"] == pubkey
+      next unless body["target_hash"].is_a?(String) && !body["target_hash"].empty?
+
+      latest[[ record.author_pubkey, body["target_hash"] ]] = body
+    end
+    latest.values.reject { |body| body["opinion"] == "none" }
   end
 
   def comments_on(record_hash)

@@ -15,7 +15,7 @@ module RiceSpace
     RATE_COMMANDS = %w[show set].freeze
     FOLDER_COMMANDS = %w[clone push preview watch sign verify export goodbye prune].freeze
     IDENTITY_COMMANDS = %w[create join show backup device-add device-revoke rotate recover endorse].freeze
-    PEER_COMMANDS = %w[serve add list remove sync keygen].freeze
+    PEER_COMMANDS = %w[serve add list remove sync keygen bootstrap].freeze
 
     # The one sentence a person is given when they type something the CLI cannot do.
     HELP = <<~TEXT
@@ -68,6 +68,7 @@ module RiceSpace
         peer remove <name|key>     Unfollow
         peer sync [name|key]       Pull follows up to date
         peer keygen                A device key for a node operator
+        peer bootstrap             Follow the shipped seeds, then sync
 
       Options
         -H, --url URL              Where the space is (env RICESPACE_URL)
@@ -617,18 +618,32 @@ module RiceSpace
       raise UsageError, error.message
     end
 
+    # The master secret, to paper via a file — never the terminal. Shell
+    # history, scrollback and screenshots are all copies you did not mean to
+    # make; a 0600 file in a chosen path is one copy, made deliberately.
     def identity_backup
+      out = option("--out")
       identity = P2p::Identity.load(Config::DIRECTORY)
       passphrase = P2p::Keys.ask_passphrase("the master passphrase")
       secrets = identity.backup(passphrase)
 
       Ui.wordmark
-      Ui.notice("Write this down, on paper, in two places. It IS the account.")
-      puts
-      puts "  master public: #{secrets["master_public"]}"
-      puts "  master secret: #{secrets["master_secret"]}"
-      puts
-      Ui.key_value("warning", "anybody holding the secret is you — no passphrase protects paper")
+      if out
+        path = Pathname.new(out)
+        path.write(JSON.generate({ "master_public" => secrets["master_public"],
+          "master_secret" => secrets["master_secret"] }) + "\n")
+        path.chmod(0o600)
+        Ui.ok("Backed up to #{path} (0600).")
+        Ui.key_value("next", "print it, twice, then delete the file — paper, not disk")
+      else
+        Ui.notice("Write this down, on paper, in two places. It IS the account.")
+        puts
+        puts "  master public: #{secrets["master_public"]}"
+        puts "  master secret: #{secrets["master_secret"]}"
+        puts
+        Ui.key_value("warning", "anybody holding the secret is you — no passphrase protects paper")
+        Ui.key_value("better", "`identity backup --out paper.json` avoids terminal scrollback")
+      end
     rescue P2p::Error => error
       raise UsageError, error.message
     end
@@ -646,6 +661,7 @@ module RiceSpace
       when "remove" then peer_remove
       when "sync" then peer_sync
       when "keygen" then peer_keygen
+      when "bootstrap" then peer_bootstrap
       else
         raise UsageError, "unknown peer command #{sub.inspect} — one of: #{PEER_COMMANDS.join(", ")}"
       end
@@ -711,6 +727,44 @@ module RiceSpace
       raise UsageError, error.message
     end
 
+    # First contact: follow every shipped seed that has an address, then
+    # sync. Seeds name keys, not live hosts — addresses rot, gossip and the
+    # beacon correct them, the TLS pin still has to pass. Following is still
+    # explicit afterwards: bootstrap follows seeds, nothing else, ever.
+    def peer_bootstrap
+      identity = p2p_identity
+      peers = P2p::Peers.load(Config::DIRECTORY)
+      seeds = P2p::Seeds.list
+      raise UsageError, "no seeds shipped with this client" if seeds.empty?
+
+      Ui.wordmark
+      added = 0
+      seeds.each do |seed|
+        next if peers.follow?(seed["key"])
+
+        name = seed["petname"].empty? ? P2p::Names.short(seed["key"]) : seed["petname"]
+        peers.add(seed["key"], petname: name, addrs: seed["addrs"])
+        record_follow_quiet(identity, seed["key"], name)
+        added += 1
+        Ui.key_value("following", "#{P2p::Names.display(name, seed["key"])}#{seed["addrs"].empty? ? " (no address — gossip may find one)" : ""}")
+      end
+      Ui.ok(added.zero? ? "Seeds already followed." : "Following #{added} seed(s).")
+
+      @argv = []
+      peer_sync
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    # record_follow without the passphrase round-trip per seed: one unlock,
+    # one record per follow would fork the seq — instead a single `friend`
+    # per seed is wrong too. Simplest honest shape: sign each follow.
+    def record_follow_quiet(identity, pub, petname)
+      passphrase = ENV["RICESPACE_PASSPHRASE"] || P2p::Keys.ask_passphrase("the device passphrase (once, for #{P2p::Names.short(pub)})")
+      ENV["RICESPACE_PASSPHRASE"] = passphrase
+      record_follow(pub, petname)
+    end
+
     def peer_list
       identity = p2p_identity
       peers = P2p::Peers.load(Config::DIRECTORY)
@@ -718,18 +772,26 @@ module RiceSpace
       Ui.wordmark
       Ui.key_value("you", identity.short_id)
       if peers.follows.empty?
-        puts "  #{Ui.send(:dim, "following nobody — peer add <key> <name>")}"
-        return
+        puts "  #{Ui.send(:dim, "following nobody — peer add <key> <name>, or peer bootstrap")}"
+      else
+        peers.follows.each do |pub, entry|
+          feed = P2p::Feed.new(pub)
+          result = feed.verify
+          state = result.ok? ? "seq #{result.state["seq"]}" : "BROKEN: #{result.errors.first}"
+          name = entry.is_a?(Hash) ? entry["petname"] : ""
+          addrs = entry.is_a?(Hash) ? Array(entry["addrs"]) : []
+          Ui.key_value(name.empty? ? P2p::Names.short(pub) : name,
+            "#{P2p::Names.short_pair(pub)} · #{state} · #{addrs.first || "no address"}")
+        end
       end
 
-      peers.follows.each do |pub, entry|
-        feed = P2p::Feed.new(pub)
-        result = feed.verify
-        state = result.ok? ? "seq #{result.state["seq"]}" : "BROKEN: #{result.errors.first}"
-        name = entry.is_a?(Hash) ? entry["petname"] : ""
-        addrs = entry.is_a?(Hash) ? Array(entry["addrs"]) : []
-        Ui.key_value(name.empty? ? P2p::Names.short(pub) : name,
-          "#{P2p::Names.short_pair(pub)} · #{state} · #{addrs.first || "no address"}")
+      hints = peers.hints.reject { |pub, _| peers.follow?(pub) }
+      unless hints.empty?
+        Ui.section("heard about (not followed)")
+        hints.each do |pub, addrs|
+          Ui.key_value(P2p::Names.short(pub),
+            "#{P2p::Names.short_pair(pub)} · #{Array(addrs).first || "no address"} · peer add to follow")
+        end
       end
     rescue P2p::Error => error
       raise UsageError, error.message
@@ -785,6 +847,8 @@ module RiceSpace
       end
 
       total = 0
+      pushed_total = 0
+      learned_total = 0
       shown = {}
       targets.each do |pub, addr, via|
         host, port = addr.split(":", 2)
@@ -796,6 +860,8 @@ module RiceSpace
           gained = P2p::Sync.pull(host, port || P2p::Sync::DEFAULT_PORT,
             identity: identity, peers: peers, private_hex: private_hex,
             expected_key: device_key || via)
+          pushed_total += gained.delete("!pushed").to_i
+          learned_total += gained.delete("!addrs").to_i
           count = gained.values.sum
           total += count
           shown[pub] = (shown[pub] || 0) + count
@@ -806,7 +872,9 @@ module RiceSpace
       shown.each do |pub, count|
         Ui.key_value(P2p::Names.short(pub), count.is_a?(Integer) ? (count.zero? ? "up to date" : "+#{count} records") : count)
       end
-      Ui.ok("Synced #{total} new records.") unless total.zero?
+      Ui.key_value("pushed", "#{pushed_total} of your records accepted") if pushed_total.positive?
+      Ui.key_value("learned", "#{learned_total} new addresses via gossip") if learned_total.positive?
+      Ui.ok("Synced #{total} new records.") unless total.zero? && pushed_total.zero?
     rescue P2p::Error => error
       raise UsageError, error.message
     end
