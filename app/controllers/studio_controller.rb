@@ -33,6 +33,7 @@ class StudioController < ApplicationController
     end
 
     if profile.update(document: document)
+      PeerWrite.publish_local(current_user)
       redirect_to studio_path, notice: "Profile saved."
     else
       @profile = profile

@@ -165,6 +165,13 @@ class User < ApplicationRecord
   validates :greeting, length: { maximum: 140 }, allow_blank: true
   validates :mood, length: { maximum: 40 }, allow_blank: true
   validates :password, length: { minimum: MINIMUM_PASSWORD_LENGTH }, allow_nil: true
+  # The P2P feed this account speaks as, when it has one. A 64-hex public key
+  # or nothing — the feed itself lives outside the database, in the node's
+  # store, and this column is only the link between the two.
+  normalizes :pubkey, with: ->(value) { value.to_s.strip.downcase }
+  validates :pubkey,
+    format: { with: /\A[0-9a-f]{64}\z/, message: "is a 64-character key" },
+    uniqueness: true, allow_blank: true
 
   after_create { build_profile.save! unless profile }
 

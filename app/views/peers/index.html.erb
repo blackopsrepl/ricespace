@@ -1,0 +1,86 @@
+<% content_for :title, "Peers — this node's feeds" %>
+
+<section class="mb-14">
+  <h1 class="max-w-3xl text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
+    Peers.
+  </h1>
+  <p class="mt-5 max-w-2xl text-lg leading-relaxed text-zinc-400">
+    Every feed this node holds, verified. Not a registry — a replica list.
+    What is here arrived over sync and checked out; what is not here is not
+    this node's to show.
+  </p>
+  <div class="mt-7 flex flex-wrap items-center gap-3">
+    <%= button_to "Sync follows", sync_peers_path, method: :post, class: "btn btn-primary" %>
+  </div>
+</section>
+
+<section class="mb-16">
+  <h2 class="rule">
+    <span class="label">Feeds</span>
+    <span class="label text-zinc-600"><%= pluralize(@peers.size, "feed") %></span>
+  </h2>
+
+  <% if @peers.any? %>
+    <ul class="mt-8 grid gap-px border border-zinc-800 sm:grid-cols-2 lg:grid-cols-3">
+      <% @peers.each do |peer| %>
+        <li class="panel p-4">
+          <p class="nametext truncate font-semibold text-zinc-100">
+            <%= peer.petname.presence || peer.short_id %>
+            <% if peer.self_feed? %><span class="label text-amber-400">you</span><% end %>
+          </p>
+          <p class="label mt-1"><%= peer.short_id %></p>
+          <p class="label mt-3">
+            seq <%= peer.latest_seq %>
+            <% if peer.compromised? %> · <span class="text-red-400">possibly compromised</span><% end %>
+            <% if peer.deleted? %> · <span class="text-zinc-500">said goodbye</span><% end %>
+          </p>
+          <% if peer.latest_document %>
+            <p class="mt-4"><%= link_to "Read the page", peer_path(peer.pubkey), class: "btn" %></p>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <div class="mt-8 border border-dashed border-zinc-800 p-8">
+      <p class="text-zinc-400">
+        No feeds yet. Follow somebody with
+        <code class="text-zinc-200">ricespace peer add &lt;key&gt; ron --at host:port</code>,
+        then sync.
+      </p>
+    </div>
+  <% end %>
+</section>
+
+<% if signed_in? %>
+<section class="mb-16">
+  <h2 class="rule">
+    <span class="label">This node's device key</span>
+    <span class="label text-zinc-600">for feed owners</span>
+  </h2>
+  <% node_key = PeerWrite.node_device_public %>
+  <% if node_key %>
+    <p class="mt-5 max-w-2xl text-zinc-400">
+      Before this node may sign for your account, your feed must name its device key.
+      From the machine holding your master key:
+    </p>
+    <pre class="mt-4 max-w-2xl overflow-x-auto border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs text-amber-100"><%= node_key %></pre>
+    <p class="label mt-3">authorise it with a <code>device-add</code> record — the README walks through it</p>
+  <% else %>
+    <p class="mt-5 max-w-2xl text-zinc-400">
+      This node has no device key yet — it cannot sign for anybody. Its operator sets
+      <code class="text-zinc-300">RICESPACE_NODE_SECRET_FILE</code> to a file holding 64 hex characters.
+    </p>
+  <% end %>
+</section>
+<% end %>
+
+<section class="mb-16">
+  <h2 class="rule"><span class="label">Follow somebody</span></h2>
+  <%= form_with url: add_peer_path, method: :post, class: "mt-6 flex max-w-2xl flex-wrap gap-3" do |form| %>
+    <%= form.text_field :pubkey, placeholder: "their key — 64 hex characters",
+          class: "min-w-0 flex-1 border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm" %>
+    <%= form.text_field :petname, placeholder: "what you call them",
+          class: "w-44 border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm" %>
+    <%= form.submit "Follow", class: "btn btn-primary" %>
+  <% end %>
+</section>

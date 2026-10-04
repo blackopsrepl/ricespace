@@ -28,6 +28,7 @@ module Api
         return reject_stale(profile) unless profile.version == expected
 
         profile.update!(document: document_param)
+        PeerWrite.publish_local(current_user)
 
         render json: { profile: presentation(profile) }
       end

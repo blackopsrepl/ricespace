@@ -1,0 +1,83 @@
+<% content_for :title, "#{@peer.petname.presence || @peer.short_id} — a replicated page" %>
+
+<% if @compromised %>
+  <div class="mb-8 border border-red-800 bg-red-950/40 p-4">
+    <p class="font-semibold text-red-300">This feed may be compromised.</p>
+    <p class="mt-1 text-sm text-red-200/80">
+      Two different records claim the same place in its history. Nothing here is trusted
+      until its owner publishes a rotation.
+    </p>
+  </div>
+<% end %>
+
+<% if @deleted %>
+  <div class="mb-8 border border-zinc-700 bg-zinc-900/60 p-4">
+    <p class="text-zinc-300">This account said goodbye. What follows is the last verified copy.</p>
+  </div>
+<% end %>
+
+<style><%= @rendered.css %></style>
+
+<section class="contactTable mb-10">
+  <p class="nametext text-2xl font-semibold">
+    <%= @peer.petname.presence || @peer.short_id %>
+  </p>
+  <p class="label mt-1"><%= @peer.short_id %> · replicated, read-only · score <%= @score %></p>
+  <% if signed_in? %>
+    <div class="mt-4 flex gap-3">
+      <%= button_to "Like", react_peer_path(@peer.pubkey, opinion: "like"), method: :post, class: "btn" %>
+      <%= button_to "Dislike", react_peer_path(@peer.pubkey, opinion: "dislike"), method: :post, class: "btn" %>
+    </div>
+  <% end %>
+</section>
+
+<article id="profile">
+  <%= @rendered.html %>
+</article>
+
+<% if @rice.any? %>
+  <section id="showcase" class="mt-10">
+    <h2 class="orangetext15 rule"><span class="label">Rice</span></h2>
+    <% if @rice["title"].present? %><p class="rice-title mt-4 text-xl font-semibold"><%= @rice["title"] %></p><% end %>
+    <% if @rice["summary"].present? %><p class="mt-2 text-zinc-400"><%= @rice["summary"] %></p><% end %>
+    <% facts = @rice["facts"].is_a?(Hash) ? @rice["facts"] : {} %>
+    <% if facts.any? %>
+      <dl class="mt-4 flex flex-wrap gap-x-5 gap-y-3">
+        <% facts.each do |label, value| %>
+          <div class="fact"><dt class="label"><%= label %></dt><dd class="fact-value"><%= value %></dd></div>
+        <% end %>
+      </dl>
+    <% end %>
+  </section>
+<% end %>
+
+<% lists = @lists.is_a?(Hash) ? @lists : {} %>
+<% Array(lists["blurbs"]).each do |blurb| %>
+  <% next unless blurb.is_a?(Hash) %>
+  <section class="blurb mt-8">
+    <h3 class="blurb-title orangetext15"><%= blurb["title"] %></h3>
+    <p class="mt-2"><%= blurb["body"] %></p>
+  </section>
+<% end %>
+
+<section class="comments mt-10" id="comments">
+  <h2 class="orangetext15 rule"><span class="label">Wall</span></h2>
+  <% @wall.each do |comment| %>
+    <% body = comment.parsed_body %>
+    <div class="comment mt-4">
+      <p class="comment-body"><%= body["text"] %></p>
+      <p class="label mt-1"><%= RiceSpace::P2p::Canonical.short_id(comment.author_pubkey) %></p>
+    </div>
+  <% end %>
+  <% if @wall.empty? %>
+    <p class="mt-4 text-zinc-500">Nothing written here yet.</p>
+  <% end %>
+  <% if signed_in? %>
+    <%= form_with url: peer_comments_path(@peer.pubkey), method: :post, class: "mt-6" do |form| %>
+      <%= form.text_area :body, name: "comment[body]", rows: 2, maxlength: 1000,
+            placeholder: "Write on this wall — signed as you.",
+            class: "w-full border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm" %>
+      <%= form.submit "Leave a comment", class: "btn btn-primary mt-3" %>
+    <% end %>
+  <% end %>
+</section>

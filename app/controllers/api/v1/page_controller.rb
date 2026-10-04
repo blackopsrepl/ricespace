@@ -38,6 +38,7 @@ module Api
         return if @errors.any? && fail_with(:unprocessable_content, "invalid_page",
           "some entries were refused", details: @errors)
 
+        PeerWrite.publish_local(current_user)
         render json: { page: presentation }
       end
 

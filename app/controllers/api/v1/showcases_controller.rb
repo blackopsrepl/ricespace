@@ -21,6 +21,7 @@ module Api
             "the showcase was not accepted", details: showcase.errors.full_messages)
         end
 
+        PeerWrite.publish_local(current_user)
         render json: { showcase: presentation(showcase) }
       end
 

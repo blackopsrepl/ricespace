@@ -47,6 +47,8 @@ Rails.application.routes.draw do
   delete "showcase/shots/:id", to: "showcases#remove_shot", as: :showcase_shot
   patch "showcase/shots/:id/move", to: "showcases#move_shot", as: :move_showcase_shot
   resource :account, only: [ :update, :destroy ], controller: "accounts"
+  # Link this account to its P2P feed (or unlink it). The studio owns the form.
+  patch "account/feed", to: "accounts#link_feed", as: :link_feed_account
 
   # Liking a page, or anything posted on one.
   #
@@ -100,6 +102,14 @@ Rails.application.routes.draw do
   delete "profiles/:username/block", to: "profiles#unblock"
 
   resources :profiles, only: [ :show ], param: :username
+
+  # This node's view of the network: the feeds it holds, verified.
+  get "peers", to: "peers#index", as: :peers
+  get "peers/:pubkey", to: "peers#show", as: :peer, constraints: { pubkey: /[0-9a-f]{64}/ }
+  post "peers/sync", to: "peers#sync", as: :sync_peers
+  post "peers/add", to: "peers#add", as: :add_peer
+  post "peers/:pubkey/react", to: "peers#react", as: :react_peer, constraints: { pubkey: /[0-9a-f]{64}/ }
+  post "peers/:pubkey/comments", to: "peers#comment", as: :peer_comments, constraints: { pubkey: /[0-9a-f]{64}/ }
 
   # The published layouts. `apply` is a POST because it changes a page.
   resources :layouts, only: [ :index, :show ] do

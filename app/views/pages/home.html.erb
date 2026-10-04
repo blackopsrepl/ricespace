@@ -137,6 +137,33 @@
   <% end %>
 </section>
 
+<% if @peer_pages.any? %>
+<section id="peer-pages" class="mb-16">
+  <h2 class="rule">
+    <span class="label">From the network</span>
+    <span class="label text-zinc-600">replicated pages, ranked the same way</span>
+  </h2>
+
+  <ol class="mt-8 grid gap-px border border-zinc-800 sm:grid-cols-2 lg:grid-cols-3">
+    <% @peer_pages.each_with_index do |entry, index| %>
+      <li class="bg-zinc-950">
+        <%= link_to peer_path(entry[:peer].pubkey), class: "group block p-5" do %>
+          <p class="label text-amber-400">#<%= index + 1 %></p>
+          <h3 class="nametext mt-3 truncate text-lg font-semibold group-hover:text-amber-300">
+            <%= entry[:peer].petname.presence || entry[:peer].short_id %>
+          </h3>
+          <p class="label mt-1"><%= entry[:peer].short_id %> · replicated</p>
+          <p class="mt-4 flex items-baseline gap-2">
+            <span class="fact-value text-xl text-amber-300"><%= entry[:net] %></span>
+            <span class="label"><%= pluralize(entry[:total], "reaction") %></span>
+          </p>
+        <% end %>
+      </li>
+    <% end %>
+  </ol>
+</section>
+<% end %>
+
 <section id="pages" class="mb-16">
   <h2 class="rule">
     <span class="label">Pages</span>

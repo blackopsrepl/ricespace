@@ -44,6 +44,11 @@ class PagesController < ApplicationController
     @layouts = Layout.all.first(FEATURED_LAYOUTS)
     @profile_count = Profile.count
     @showcase_count = Showcase.count
+
+    # Replicated feeds this node holds: the local view of the network. Same
+    # ranking rule as above (reactions lift the page, most-reacted first) —
+    # computed over what this node actually verified, not a global list.
+    @peer_pages = ranked_peers
   end
 
   def agents
@@ -136,5 +141,41 @@ class PagesController < ApplicationController
       when "BuildPhoto" then :build
       else []
       end
+    end
+
+    # Replicated pages, ranked by the same rule as local ones: most reacted-to
+    # first, ties to the better-liked. A peer's tally is its page plus
+    # everything posted on it, because that is how every page counts.
+    def ranked_peers
+      tallies = Hash.new { |hash, key| hash[key] = { likes: 0, dislikes: 0 } }
+      PeerRecord.where(kind: "reaction").each do |record|
+        body = record.parsed_body
+        feed = body["target_feed"]
+        next if feed.blank?
+
+        if body["opinion"] == "dislike"
+          tallies[feed][:dislikes] += 1
+        else
+          tallies[feed][:likes] += 1
+        end
+      end
+
+      tallies.reject! { |_feed, tally| (tally[:likes] + tally[:dislikes]).zero? }
+      return [] if tallies.empty?
+
+      peers = Peer.where(pubkey: tallies.keys).index_by(&:pubkey)
+      tallies
+        .sort_by do |feed, tally|
+          total = tally[:likes] + tally[:dislikes]
+          net = tally[:likes] - tally[:dislikes]
+          [ -total, -net, feed ]
+        end
+        .filter_map do |feed, tally|
+          peer = peers[feed]
+          next if peer.nil? || peer.latest_document.nil?
+
+          { peer: peer, net: tally[:likes] - tally[:dislikes], total: tally[:likes] + tally[:dislikes] }
+        end
+        .first(POPULAR_SHOWN)
     end
 end

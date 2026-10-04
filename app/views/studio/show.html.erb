@@ -457,6 +457,37 @@
   </div>
 </section>
 
+<section class="mb-14">
+  <h2 class="rule">
+    <span class="label">Your feed on the network</span>
+    <span class="label text-zinc-600">optional</span>
+  </h2>
+  <p class="mt-5 max-w-2xl text-zinc-400">
+    Paste the master key from <code class="text-zinc-300">ricespace identity show</code> and this
+    node speaks as your feed: your saves publish into it, and your reactions on replicated
+    pages are signed as you. Leave it empty to stay local-only.
+  </p>
+
+  <%= form_with model: current_user, url: link_feed_account_path, method: :patch,
+        class: "mt-5 flex max-w-2xl flex-wrap items-center gap-2" do |form| %>
+    <%= form.text_field :pubkey, value: current_user.pubkey,
+          placeholder: "64 hex characters — or nothing",
+          spellcheck: false, class: "field min-w-0 flex-1 font-mono text-xs" %>
+    <%= form.submit current_user.pubkey.present? ? "Relink" : "Link feed", class: "btn" %>
+  <% end %>
+
+  <% if current_user.pubkey.present? %>
+    <p class="label mt-3">
+      linked as <%= RiceSpace::P2p::Canonical.short_id(current_user.pubkey) %>
+      <% if PeerWrite.authorized?(current_user) %>
+        · <span class="text-emerald-400">this node may sign</span>
+      <% else %>
+        · <span class="text-amber-400">this node may not sign yet — authorise its device key (see below)</span>
+      <% end %>
+    </p>
+  <% end %>
+</section>
+
 <section>
   <h2 class="rule">
     <span class="label">Write it with an agent</span>
