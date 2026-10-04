@@ -84,14 +84,42 @@ no build step, and no dependency outside the standard library. One language in t
 means the client is linted by the same RuboCop and exercised by the same `make check` as the
 site.
 
-From a checkout:
+### Install on your workstation
 
-    make install            # build and install the gem, then write shell completions
-    cli/exe/ricespace       # or just run it from here, with nothing installed
+The CLI needs **Ruby 3.2 or newer with OpenSSL** (Ruby 3.4 recommended), Git and Make.
+It does **not** need Rails, SQLite, Node, a running website, or `bundle install`.
 
-A gem is the whole distribution story: RubyGems puts the executable on your `PATH` and keeps
-it updatable. `make install` also writes the bash, zsh and fish completion files, generated
-from the client so they cannot drift from its flags.
+```sh
+git clone https://github.com/blackopsrepl/ricespace.git
+cd ricespace
+make install
+export PATH="$HOME/.local/bin:$PATH"
+ricespace --version
+ricespace --help
+```
+
+No sudo. The executable is `~/.local/bin/ricespace`; the gem lives in Ruby's user
+installation directory. Add the PATH line to your shell's startup file to keep it.
+For fish: `fish_add_path ~/.local/bin`. `make install` also generates bash, zsh and
+fish completions. Zsh may need `~/.local/share/zsh/site-functions` added to `fpath`
+before `compinit`. Restart your shell after installation.
+
+**Without a checkout:** download `ricespace.gem` from the
+[latest GitHub release](https://github.com/blackopsrepl/ricespace/releases/latest), then:
+
+```sh
+mkdir -p "$HOME/.local/bin"
+gem install --local ./ricespace.gem --user-install --no-document \
+  --no-format-executable --bindir "$HOME/.local/bin"
+export PATH="$HOME/.local/bin:$PATH"
+ricespace --version
+```
+
+**Update:** `git pull --ff-only && make install` from the checkout, or install the
+new release gem with the same command. Your identity and feeds are outside the
+checkout and are not replaced. After changing Ruby versions, reinstall the gem.
+**Uninstall:** `gem uninstall ricespace`; this does not delete your account or feeds.
+You can also run `cli/exe/ricespace --help` directly without installing anything.
 
 ## Working in a folder
 
@@ -140,6 +168,64 @@ TLS between workstations that opted in, each pinned to keys they already know.
     ricespace peer sync                    # pull your follows up to date, pinned to their keys
     ricespace peer bootstrap               # first contact: follow the shipped seeds
 
+### First page, step by step
+
+Run these on your own machine after installing the CLI. Identity creation asks for
+a strong passphrase twice; later commands ask for the device passphrase. Do not put
+secrets into command arguments, shell history, or a shared folder.
+
+```sh
+ricespace identity create --name laptop
+ricespace identity show
+mkdir -p my-page
+cd my-page
+printf '%s\n' '<h1>My rice</h1><marquee>Hello, neighbours.</marquee>' > page.html
+ricespace folder sign --all .
+ricespace folder verify .
+```
+
+Keep the full **master public key** from `identity show`: that is what friends
+follow, not the abbreviated `rice:` label and not your device key. The signed
+folder now includes `manifest.json`. Edit `page.html` and sign again to publish a
+new version; verification fails if you change files without signing them again.
+Back up with `ricespace identity backup --out paper.json`: the file contains your
+unencrypted master secret, so print/store it offline and remove the disk copy.
+
+In a second terminal, leave the peer running:
+
+```sh
+ricespace peer serve
+```
+
+Give a friend your full public key and reachable address. On their machine:
+
+```sh
+ricespace peer add <your-full-master-public-key> friend --at <your-host>:7676
+ricespace peer sync friend
+ricespace peer list
+```
+
+They must create their own identity first. Repeat `peer sync` to fetch updates;
+it also publishes their own feed over the connection they open. Stop serving with
+Ctrl-C. Files stay on disk when you stop.
+
+**Reading is separate from syncing:** the CLI stores and verifies feeds; it is not
+a browser or a standalone safe HTML renderer. Run a RiceSpace Rails node and use
+`/peers` to read replicated pages with the site's HTML/CSS cleaners. `folder preview`
+also needs a running Rails renderer. `folder export . ../my-page-export` copies a
+verified signed folder; it does not sanitize arbitrary HTML into a safe site.
+
+**Connectivity:** open TCP 7676 on the serving machine's firewall and forward it
+on your router if needed. LAN discovery uses UDP 7677. `peer serve --no-lan` disables
+LAN announcements. Behind CGNAT, outbound sync/publish to a reachable peer works,
+but two unreachable peers cannot connect to each other without changing their
+network setup. There is no hidden relay. TLS pins identity keys; get a friend's
+key through a channel you trust. Gossiped addresses are hints, not proof of identity.
+
+`peer bootstrap` follows the shipped seed keys. It is not a guaranteed public
+rendezvous service: a seed without an address cannot be dialled. Exchange an
+address with a friend to make first contact.
+
 Your address is your public key, shown as `rice:` plus 12 characters. Names are petnames —
 `ron` is who *you* call ron, an entry in your own friends list mapping a name to a key, and
 the page always shows the key beside the name so a clash is visible, never silent.
@@ -184,7 +270,7 @@ account.
 ## Keeping the keys
 
 In the P2P shape the key *is* the account — whoever holds it is you, and there is no
-password reset. Three habits, in order of importance:
+password reset. Five habits, in order of importance:
 
 1. **Back the master up on paper, now.** `ricespace identity backup` prints it once. Two
    places, offline. The master never signs day to day, so paper is where it lives.
@@ -209,6 +295,70 @@ A stolen key cannot rewrite your past: old versions are signed and already repli
 your friends, so any friend holding one can prove a rewritten one is a fork. The thief can
 only append junk until your revocation spreads — which is why revoking fast matters more
 than anything else on this list.
+
+## FAQ and troubleshooting
+
+**Do I need to host a website?** No for identity, signing and replication. Yes for
+the current safe browser UI: a Rails node renders feeds at `/peers`. The CLI alone
+does not turn replicated records into a browser page.
+
+**Is there a blockchain, subscription or token?** No. Keys identify authors;
+signed per-author logs order updates. You pay only for resources you already use:
+your workstation, storage and connectivity. There is no network fee or global consensus.
+
+**Must my workstation stay on?** Only to answer new inbound requests. Existing
+followers keep copies while you are offline. New edits do not spread until you
+sync or serve again. This is not automatic always-on background synchronization.
+
+**Can two people have the same name?** Yes. Names are local labels. Compare full
+public keys through a trusted channel; a short label or matching username is not
+proof that you have found the same person.
+
+**Why does sync say no address, refuse a connection or time out?** Check `peer list`,
+then re-run `peer add <key> <name> --at host:7676` with a reachable address. The other
+machine must be running `peer serve`. Check its firewall, router forwarding and
+CGNAT. LAN discovery does not provide internet discovery. `bootstrap` cannot invent
+an address for an unreachable seed.
+
+**What does a TLS identity failure mean?** The machine answering is not presenting
+an acceptable key for the feed you dialled. Do not disable verification. Confirm
+the owner's key and address with them; sync the valid device authorization history.
+
+**Where is my data?** Identity, encrypted keys, follows and HTTP login configuration
+live under `~/.config/ricespace`; signed feeds live under
+`~/.local/share/ricespace/feeds` (or `$XDG_DATA_HOME/ricespace/feeds`). Your editable
+page folder is wherever you created it. `RICESPACE_CONFIG_HOME` and `RICESPACE_STORE`
+isolate disposable tests. Never point tests at your real account.
+
+**Can I move to another computer?** Use `identity join <master-public-key>` on the
+new computer, authorize its device key with `identity device-add` on the master
+computer, then sync the feed history. Do not share one device key between computers.
+Avoid concurrent writes to the same feed: a fork is detected, not silently merged.
+
+**What if a key is stolen or lost?** Revoke a stolen device promptly from the master
+computer. Keep an offline master backup. Social recovery requires a majority of
+eligible friends and signed endorsements; eligibility is measured in feed records,
+not years. With neither keys nor eligible friends, there is no administrator reset.
+Read the [recovery protocol and threat model](docs/p2p-spec.md) before relying on it.
+
+**Can I delete my page everywhere?** `folder goodbye` permanently closes the feed;
+honest nodes honor the tombstone. It cannot erase backups, screenshots or copies
+held by hostile peers. `folder prune <key>` removes someone else's local replica,
+not their account or every copy of it.
+
+**Is a signed page safe HTML?** A signature proves authorship, not harmlessness.
+The Rails renderer removes JavaScript and unsafe CSS; exported source is not
+sanitized. Do not open untrusted raw HTML with privileges you would not give its author.
+
+**Why is `ricespace` not found after installing?** Add `~/.local/bin` to PATH and
+restart your shell. Try `~/.local/bin/ricespace --version`. If Ruby changed,
+re-run `make install` under the Ruby you now use. Installation failures exit nonzero;
+do not treat a failed install as success.
+
+**How do I check it before using real keys?** Run `make check` from the checkout.
+It exercises Rails, CLI, live loopback TLS replication and signature refusals, then
+runs lint and security checks. A passing local suite is not a penetration-test
+certification or proof of reachability on your own network.
 
 ## Licence
 
