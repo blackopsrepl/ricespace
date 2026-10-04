@@ -1,5 +1,7 @@
 # RiceSpace
 
+<img src="docs/assets/ricespace-mascot.png" alt="RiceSpace mascot — a rice-grain CRT with a monitor-cable antenna" width="200">
+
 **A page per account, and the HTML and CSS to fill it.**
 
 <img src="docs/assets/screens/home.png" alt="The RiceSpace front page: the most-reacted-to pages, then the directory" width="760">
