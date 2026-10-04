@@ -78,7 +78,7 @@ module RiceSpace
           @identity = identity
           @store_root = store_root
           # Callable(pub) → bool: does the serving side hold this feed as a
-          # follow or its own? Pushes for anything else are dropped.
+          # follow or its own? Anything else lands in capped quarantine.
           @peers_follow = follows
           @records_moved = 0
           @bytes_moved = 0
