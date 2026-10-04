@@ -12,8 +12,8 @@ module RiceSpace
       "page" => %w[show pull push rice links demos hardware blurbs friends],
       "rate" => %w[show set],
       "folder" => %w[clone push preview watch sign verify export goodbye prune],
-      "identity" => %w[create join show backup device-add device-revoke rotate recover endorse],
-      "peer" => %w[serve add list remove sync keygen bootstrap]
+      "identity" => %w[create join show backup device-add device-revoke rotate recover endorse prove],
+      "peer" => %w[serve address add list remove sync keygen bootstrap]
     }.freeze
 
     GLOBAL_FLAGS = %w[--url --token --json --no-colour --quiet --help --version].freeze
@@ -28,7 +28,9 @@ module RiceSpace
       "clone" => %w[--force],
       "push" => %w[--dry-run --force],
       "preview" => %w[--renderer --stage-only],
-      "watch" => %w[--every]
+      "watch" => %w[--every],
+      "address" => %w[--host --port],
+      "add" => %w[--at --device]
     }.freeze
 
     class << self

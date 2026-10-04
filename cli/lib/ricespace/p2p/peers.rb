@@ -86,8 +86,9 @@ module RiceSpace
         entry.is_a?(Hash) ? Array(entry["addrs"]).map(&:to_s) : []
       end
 
-      def add(public_hex, petname:, addrs: [])
+      def add(public_hex, petname:, addrs: [], device: nil)
         raise Error, "not an account" unless Keys.valid_public?(public_hex.to_s)
+        raise Error, "not a device public key" if device && !Keys.valid_public?(device.to_s)
 
         name = petname.to_s.strip
         raise Error, "name the follow (a petname, for you)" if name.empty?
@@ -95,6 +96,7 @@ module RiceSpace
         entry = @follows[public_hex.to_s] || {}
         entry = entry.is_a?(Hash) ? entry : {}
         entry["petname"] = name
+        entry["device"] = device if device
         entry["addrs"] = ((Array(entry["addrs"]) + Array(addrs)).map(&:to_s).uniq)
         @follows[public_hex.to_s] = entry
         save

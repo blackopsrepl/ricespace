@@ -91,13 +91,13 @@ module RiceSpace
       end
 
       def self.ask_passphrase(prompt)
-        print "#{prompt}: "
+        $stderr.print "#{prompt}: "
         result = begin
           $stdin.noecho(&:gets)
         rescue StandardError
           $stdin.gets
         end
-        puts
+        $stderr.puts
         result.to_s.chomp
       end
 

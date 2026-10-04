@@ -31,6 +31,7 @@ require_relative "ricespace/p2p/names"
 require_relative "ricespace/p2p/peers"
 require_relative "ricespace/p2p/seeds"
 require_relative "ricespace/p2p/tls"
+require_relative "ricespace/p2p/address"
 require_relative "ricespace/p2p/sync"
 require_relative "ricespace/command"
 

@@ -14,6 +14,7 @@ CI.run do
   # tested by the same `make check` as the site — which is the reason it is Ruby.
   step "Tests: CLI", "ruby -Icli/lib cli/test/ricespace_test.rb"
   step "Tests: P2P", "ruby -Icli/lib cli/test/p2p_test.rb"
+  step "Tests: Peer address", "ruby -Icli/lib cli/test/peer_address_test.rb"
 
   # The pictures the README shows. They are generated, so the script that generates them is
   # part of the product, and the framework wrappers beside it are not: a syntax error in

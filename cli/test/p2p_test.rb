@@ -278,6 +278,27 @@ class P2pTest < Minitest::Test
     assert_equal public_hex, RiceSpace::P2p::Keys.public_from_private(secret_hex)
   end
 
+  def test_identity_prove_signs_only_domain_separated_studio_challenges
+    original_stdin = $stdin
+    Dir.mktmpdir do |dir|
+      identity = Identity.create(dir: dir, device_name: "test", master_passphrase: "x", device_passphrase: "x")
+      challenge = "ricespace-link-v1:https://example.com:1:#{identity.device_public}:#{'a' * 64}"
+      command = RiceSpace::Command.new([ "identity", "prove", challenge ])
+      command.define_singleton_method(:p2p_identity) { identity }
+      $stdin = StringIO.new("x\n")
+      out = capture_stdout { command.run }
+      sig = out[/\b[0-9a-f]{128}\b/]
+      assert sig, "prints a public signature, never the master secret"
+      assert Keys.verify(identity.master_public, sig, challenge)
+      refute Keys.verify(identity.master_public, sig, challenge + "changed")
+      assert_raises(RiceSpace::UsageError) do
+        RiceSpace::Command.new([ "identity", "prove", "arbitrary-signing-request" ]).send(:identity_prove)
+      end
+    end
+  ensure
+    $stdin = original_stdin
+  end
+
   private
 
   def capture_stdout

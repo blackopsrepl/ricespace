@@ -14,8 +14,8 @@ module RiceSpace
     PAGE_COMMANDS = %w[show pull push rice links demos hardware blurbs friends].freeze
     RATE_COMMANDS = %w[show set].freeze
     FOLDER_COMMANDS = %w[clone push preview watch sign verify export goodbye prune].freeze
-    IDENTITY_COMMANDS = %w[create join show backup device-add device-revoke rotate recover endorse].freeze
-    PEER_COMMANDS = %w[serve add list remove sync keygen bootstrap].freeze
+    IDENTITY_COMMANDS = %w[create join show backup device-add device-revoke rotate recover endorse prove].freeze
+    PEER_COMMANDS = %w[serve address add list remove sync keygen bootstrap].freeze
 
     # The one sentence a person is given when they type something the CLI cannot do.
     HELP = <<~TEXT
@@ -62,7 +62,9 @@ module RiceSpace
         identity recover           Reclaim a lost account via your friends
         identity endorse <feed> <seq> <prev> <new-master>
                                    Vouch for a friend's recovery, as their friend
+        identity prove '<challenge>'  Sign the studio's ownership challenge with your master
         peer serve                 Answer sync requests (this machine's server)
+        peer address [--host HOST] [--port PORT]  Check and print a copy-paste share command
         peer add <key> <name>      Follow somebody: peer add <hex> ron --at host:port
         peer list                  Who you follow, and where they were last seen
         peer remove <name|key>     Unfollow
@@ -521,9 +523,28 @@ module RiceSpace
       when "rotate" then identity_rotate
       when "recover" then identity_recover
       when "endorse" then identity_endorse
+      when "prove" then identity_prove
       else
         raise UsageError, "unknown identity command #{sub.inspect} — one of: #{IDENTITY_COMMANDS.join(", ")}"
       end
+    end
+
+    def identity_prove
+      challenge = @argv.shift.to_s
+      unless challenge.match?(%r{\Aricespace-link-v1:https?://[^\s]+:\d+:[0-9a-f]{64}:[0-9a-f]{64}\z})
+        raise UsageError, "paste the exact ownership challenge from your trusted studio, quoted"
+      end
+      identity = p2p_identity
+      passphrase = P2p::Keys.ask_passphrase("the master passphrase")
+      signature = P2p::Keys.sign(identity.unlock_master(passphrase), challenge)
+      if @options[:json]
+        Ui.raw({ "proof" => signature })
+      else
+        Ui.notice("Paste this ownership proof into the same studio; it expires after 10 minutes:")
+        puts signature
+      end
+    rescue P2p::Error => error
+      raise UsageError, error.message
     end
 
     def identity_create
@@ -656,6 +677,7 @@ module RiceSpace
 
       case sub
       when "serve" then peer_serve
+      when "address" then peer_address
       when "add" then peer_add
       when "list" then peer_list
       when "remove" then peer_remove
@@ -681,6 +703,24 @@ module RiceSpace
       puts
       Ui.key_value("node", "put the secret in RICESPACE_NODE_SECRET_FILE, mode 0600")
       Ui.key_value("owner", "authorise the public half with `identity device-add`")
+    end
+
+    def peer_address
+      identity = p2p_identity
+      host = option("--host")
+      port = option("--port") || ENV["RICESPACE_PEER_PORT"] || P2p::Sync::DEFAULT_PORT
+      result = P2p::Address.report(public_key: identity.master_public,
+        device_key: identity.device_public, host: host, port: port)
+      return Ui.raw(result) if @options[:json]
+
+      Ui.wordmark
+      Ui.key_value("address", result["address"])
+      Ui.key_value("checked", result["listener"])
+      Ui.key_value("scope", result["scope"])
+      Ui.notice("Send this command to your friend (rename `friend` if they want):")
+      puts result["command"]
+    rescue P2p::Error => error
+      raise UsageError, error.message
     end
 
     def peer_serve
@@ -716,7 +756,8 @@ module RiceSpace
       at = option("--at")
       addrs = at ? [ at ] : []
       peers = P2p::Peers.load(Config::DIRECTORY)
-      peers.add(key, petname: petname, addrs: addrs)
+      device = option("--device")
+      peers.add(key, petname: petname, addrs: addrs, device: device)
 
       record_follow(key, petname)
 
@@ -884,6 +925,10 @@ module RiceSpace
     # cert must carry a key belonging to that account — never just any cert.
     def dial_device_key(pub)
       feed = P2p::Feed.new(pub)
+      if feed.records.empty?
+        entry = P2p::Peers.load(Config::DIRECTORY).follows[pub]
+        return entry["device"] if entry.is_a?(Hash) && P2p::Keys.valid_public?(entry["device"].to_s)
+      end
       result = feed.verify
       return nil unless result.ok?
 
