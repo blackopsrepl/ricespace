@@ -90,6 +90,18 @@ class P2pTest < Minitest::Test
     refute refused.ok?
   end
 
+  def test_a_rotation_to_self_is_refused
+    master = Keys.generate
+    chain = [ signed(master, master, 1, Record::GENESIS_PREV, "page", { "document" => "v1" }) ]
+    chain << signed(master, master, 2, nil, "rotation", { "new_master" => master[:public_hex] })
+    chain = relink(chain, [ master[:private_hex], master[:private_hex] ])
+
+    refused = Record.verify_chain(chain)
+
+    refute refused.ok?
+    assert_includes refused.errors.first, "moves forward"
+  end
+
   def test_a_goodbye_closes_the_feed
     master = Keys.generate
     chain = [ signed(master, master, 1, Record::GENESIS_PREV, "page", { "document" => "v1" }) ]
