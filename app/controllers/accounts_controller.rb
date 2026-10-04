@@ -18,12 +18,33 @@ class AccountsController < ApplicationController
     end
   end
 
+  # Link this account to its P2P feed: paste the master public key from
+  # `ricespace identity show`, and this node renders that feed as yours —
+  # publishing your writes into it and signing your remote reactions as you.
+  def link_feed
+    key = params.require(:user).permit(:pubkey)[:pubkey].to_s.strip.downcase
+    if key.match?(Peer::HEX) || key.empty?
+      current_user.update!(pubkey: key.presence)
+      PeerWrite.own_feed(current_user) if key.present?
+      redirect_to studio_path, notice: key.present? ?
+        "Linked — this node now speaks as #{RiceSpace::P2p::Canonical.short_id(key)}." :
+        "Unlinked — this account is local-only again."
+    else
+      redirect_to studio_path, alert: "That is not a key — paste the 64 hex characters from `ricespace identity show`."
+    end
+  rescue ActiveRecord::RecordInvalid => error
+    redirect_to studio_path, alert: error.record.errors.full_messages.to_sentence
+  end
+
   def destroy
     if current_user.admin?
       return redirect_to studio_path, alert: "The site's own account cannot be closed."
     end
 
     username = current_user.username
+    # A linked feed closes on the network too: tombstone, so honest peers drop
+    # the page. Local rows go with `close!` as before.
+    PeerWrite.goodbye(current_user) if current_user.pubkey.present?
     current_user.close!
     reset_session
 
