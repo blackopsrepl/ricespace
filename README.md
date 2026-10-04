@@ -158,14 +158,19 @@ it will run on the site. A preview that guessed would be worse than none.
 
 The same page, with nobody running it. Your account is a keypair on your own machine; your
 page is files you sign; your readers are the people who follow you, syncing directly with
-you or with anyone who holds a copy. No signup, no host, no chain, no tokens, no relays —
-TLS between workstations that opted in, each pinned to keys they already know.
+you or with anyone who holds a copy. No signup, no host, no chain, no tokens, no
+owner-operated servers — TLS between workstations that opted in, each pinned to keys
+they already know. Internet discovery runs on the Mainline DHT (the same peer-run
+network BitTorrent uses); a reachable friend can bridge you, and two strangers can
+meet at a volunteer rendezvous relay neither has met before.
 
     ricespace identity create              # your account: a keypair, nothing to sign up for
     ricespace folder sign --all            # seal the folder into your signed feed
+    ricespace net up                       # join discovery: DHT, NAT probe, publish endpoint
     ricespace peer serve                   # answer sync requests (port 7676, TLS)
-    ricespace peer add <key> ron --at host:port   # follow somebody
+    ricespace peer add <key> ron           # follow somebody — addresses resolve themselves
     ricespace peer sync                    # pull your follows up to date, pinned to their keys
+    ricespace peer status                  # discovery state, path and reachability per follow
     ricespace peer bootstrap               # first contact: follow the shipped seeds
 
 ### First page, step by step
@@ -216,16 +221,32 @@ a browser or a standalone safe HTML renderer. Run a RiceSpace Rails node and use
 also needs a running Rails renderer. `folder export . ../my-page-export` copies a
 verified signed folder; it does not sanitize arbitrary HTML into a safe site.
 
-**Connectivity:** open TCP 7676 on the serving machine's firewall and forward it
-on your router if needed. LAN discovery uses UDP 7677. `peer serve --no-lan` disables
-LAN announcements. Behind CGNAT, outbound sync/publish to a reachable peer works,
-but two unreachable peers cannot connect to each other without changing their
-network setup. There is no hidden relay. TLS pins identity keys; get a friend's
-key through a channel you trust. Gossiped addresses are hints, not proof of identity.
+**Connectivity:** run `net up` once — it joins the Mainline DHT, probes your NAT
+(UPnP/NAT-PMP mapping when the router allows, STUN observation otherwise) and
+publishes a signed endpoint slot so follows can find your current address. `peer sync`
+then walks a ladder per follow: your stored addresses, DHT-discovered ones, a
+bridge through a mutual friend running `peer serve --relay` — and, when neither
+side can dial anything, open rendezvous: the unreachable side runs
+`net wait <who> --at relay:port`, publishes a single-use ticket in its own signed
+slot, and your next `peer sync` JOINs it at a volunteer relay
+(`peer serve --relay-open`) neither of you has met before. Manual `--at` always
+wins as the escape hatch; LAN discovery uses UDP 7677 (`--no-lan` disables it).
+Every path pins the same device keys — a discovered address is never trusted on
+its own, and the rendezvous relay sees only ciphertext. Gossiped addresses are
+hints, not proof of identity. `peer status` shows which path each follow uses.
 
-`peer bootstrap` follows the shipped seed keys. It is not a guaranteed public
-rendezvous service: a seed without an address cannot be dialled. Exchange an
-address with a friend to make first contact.
+`peer bootstrap` follows the shipped seed keys and resolves them through the same
+ladder. It is not a rendezvous service we operate: seeds name keys, the DHT and
+your friends supply addresses, and a seed nobody can reach is reported, not chased.
+
+**Limitations, honestly:** DHT slots expose dial addresses and keys (never feed
+contents or follow lists — see `peer status --privacy`). Direct dial across
+symmetric NAT/CGNAT usually fails; the fallbacks are a friend bridge (needs one
+reachable consenting peer) or open rendezvous (needs one reachable volunteer relay
+plus the other side waiting — `net wait`). If nothing on earth is reachable at
+sync time, the CLI reports every failed rung instead of spinning. Unsolicited
+inbound traffic is your firewall's call.
+See [`docs/internet-networking.md`](docs/internet-networking.md) for the design.
 
 Your address is your public key, shown as `rice:` plus 12 characters. Names are petnames —
 `ron` is who *you* call ron, an entry in your own friends list mapping a name to a key, and
@@ -315,11 +336,13 @@ sync or serve again. This is not automatic always-on background synchronization.
 public keys through a trusted channel; a short label or matching username is not
 proof that you have found the same person.
 
-**Why does sync say no address, refuse a connection or time out?** Check `peer list`,
-then re-run `peer add <key> <name> --at host:7676` with a reachable address. The other
-machine must be running `peer serve`. Check its firewall, router forwarding and
-CGNAT. LAN discovery does not provide internet discovery. `bootstrap` cannot invent
-an address for an unreachable seed.
+**Why does sync say no address, refuse a connection or time out?** Check `peer status`
+first — it names the path tried per follow. If discovery never ran, run `net up`. If
+the follow has no slot and no address, re-run `peer add <key> <name> --at host:7676`
+with a reachable address. The other machine must be running `peer serve`. Behind
+CGNAT with no mutual friend, use open rendezvous instead: they run
+`net wait <you> --at relay:port` and your next sync JOINs the ticket.
+`bootstrap` cannot invent an address for a seed nobody can reach.
 
 **What does a TLS identity failure mean?** The machine answering is not presenting
 an acceptable key for the feed you dialled. Do not disable verification. Confirm

@@ -3,6 +3,8 @@
 require "test_helper"
 require "tmpdir"
 require "ricespace"
+require "ricespace/net/bencode"
+require "ricespace/net/endpoint"
 
 class PeerSyncTest < ActiveSupport::TestCase
   include RiceSpace::P2p
@@ -104,6 +106,38 @@ class PeerSyncTest < ActiveSupport::TestCase
       assert_equal 0, PeerSync.import_store(dir)[:imported]
       assert_equal 1, PeerRecord.where(author_pubkey: trusted[:public_hex]).count
     end
+  end
+
+  test "a network-replicated feed imports after relay-assisted sync" do
+    # The records arrived over a bridged connection (see
+    # cli/test/net_relay_test.rb for the wire); Rails only sees verified
+    # records on disk and imports the followed feed.
+    owner = Keys.generate
+    device = Keys.generate
+    Dir.mktmpdir do |dir|
+      feed = Feed.new(owner[:public_hex], root: dir)
+      feed.append(build(owner, owner, 1, Record::GENESIS_PREV,
+        "device-add", { "device" => device[:public_hex] }))
+      feed.append(build(owner, device, 2, Record.hash_of(feed.records.first),
+        "page", { "document" => "bridged page" }))
+      Peer.create!(pubkey: owner[:public_hex], followed: true)
+
+      result = PeerSync.import_store(dir)
+
+      assert_equal 2, result[:imported]
+      assert_equal "bridged page", Peer.find_by(pubkey: owner[:public_hex]).latest_document
+    end
+  end
+
+  test "endpoint signatures never create records and never become follows" do
+    master = Keys.generate
+    device = Keys.generate
+    slot = RiceSpace::P2p::Net::Endpoint.build(node: master[:public_hex], device: device[:public_hex],
+      addrs: [ "203.0.113.7:7676" ], sign_with: device[:private_hex])
+
+    assert_not PeerRecord::KINDS.include?("endpoint")
+    assert_nil Peer.find_by(pubkey: master[:public_hex])
+    assert slot["sig"].match?(/\A[0-9a-f]{128}\z/)
   end
 
   test "a foreign author cannot be imported under another feed key" do

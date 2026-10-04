@@ -1,8 +1,10 @@
 # The P2P spec
 
 RiceSpace without the server: one signed append-only log per account,
-follow-gated replication over direct TCP. No chain, no consensus, no tokens,
-no relays, no DHT.
+follow-gated replication over TCP — direct, DHT-discovered, or bridged
+through a consenting peer. No chain, no consensus, no tokens, no
+owner-operated servers. Peer-run discovery (Mainline DHT), rendezvous and
+relaying are part of the design; see `docs/internet-networking.md`.
 
 This document is the reference. The [README](../README.md#your-page-without-a-server)
 is the user-facing walkthrough; what follows is exact enough to reimplement from.
@@ -191,10 +193,14 @@ it no longer does). GIVE batches cap at 200 records; a session moves at most
 and 20 dials per address per minute. Connect timeout 5 s, read timeout 15 s,
 and a line past 256 KB kills the session.
 
-Peers are manual — `peer add <key> <name> --at host:port` — plus a UDP
-broadcast LAN beacon (port 7677, every 10 s; same room just works,
-`--no-lan` to disable). There is no DHT. NAT traversal without a public peer
-is impossible; any design claiming otherwise is hiding a relay.
+Peers are found by the dial ladder: manual `--at` first, then stored and
+gossiped addresses, then verified DHT endpoint slots, then relay bridges
+through consenting peers (`peer serve --relay`), then open rendezvous at a
+volunteer relay neither side has met (`peer serve --relay-open`, `net wait`).
+The UDP broadcast LAN beacon (port 7677, every 10 s; same room just works,
+`--no-lan` to disable) stays. Endpoint slots are signed by the publishing
+device, verified against feed history (authorised, unrevoked, unexpired) and
+never create follows. Full design: `docs/internet-networking.md`.
 
 ## Rendering
 
@@ -278,7 +284,9 @@ resistance (endpoints and timing are visible), and spam beyond follow-gating.
 ## What this does not do
 
 Global search, stranger discovery while offline, human-readable global names,
-spam prevention beyond follow-gating (unfollowed keys never reach disk).
-Rate limits stay a central-server tool; out here the follow list is the limit.
+spam prevention beyond follow-gating plus bounded quarantine (unknown feeds
+land in a capped holding area, verified the same, never rendered or ranked
+unless followed). Rate limits stay a central-server tool; out here the follow
+list is the limit.
 An indexer — a server by another name — comes only if this proves
 insufficient.
