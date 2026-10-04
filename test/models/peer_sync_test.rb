@@ -87,6 +87,32 @@ class PeerSyncTest < ActiveSupport::TestCase
     end
   end
 
+  test "store refresh only imports explicitly followed feeds and never creates follows" do
+    Dir.mktmpdir do |dir|
+      trusted = Keys.generate
+      stranger = Keys.generate
+      Peer.create!(pubkey: trusted[:public_hex], followed: true)
+      [ trusted, stranger ].each do |key|
+        Feed.new(key[:public_hex], root: dir).append(
+          build(key, key, 1, Record::GENESIS_PREV, "page", { "document" => "disk page" }))
+      end
+      result = PeerSync.import_store(dir)
+      assert_equal 1, result[:imported]
+      assert_nil Peer.find_by(pubkey: stranger[:public_hex])
+      assert_equal 0, PeerSync.import_store(dir)[:imported]
+      assert_equal 1, PeerRecord.where(author_pubkey: trusted[:public_hex]).count
+    end
+  end
+
+  test "a foreign author cannot be imported under another feed key" do
+    owner = Keys.generate
+    stranger = Keys.generate
+    Peer.create!(pubkey: owner[:public_hex])
+    record = build(stranger, stranger, 1, Record::GENESIS_PREV, "page", { "document" => "wrong author" })
+    assert_equal 0, PeerSync.import_feed(owner[:public_hex], [ record ])[:imported]
+    assert_nil Peer.find_by(pubkey: owner[:public_hex]).latest_document
+  end
+
   private
 
   def build(author, signer, seq, prev, kind, body)
