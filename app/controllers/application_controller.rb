@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "ricespace"
+
 # The site chrome: a dark shell around whatever a page shows, plus the flash
 # region that carries an answer back to the person who caused it.
 class ApplicationController < ActionController::Base
@@ -17,6 +19,12 @@ class ApplicationController < ActionController::Base
   RATE_LIMIT_STORE = ActiveSupport::Cache::MemoryStore.new
 
   helper_method :current_user, :signed_in?
+  before_action :refresh_disk_feeds
+
+  def refresh_disk_feeds
+    @feed_refresh = PeerSync.import_store(RiceSpace::P2p::Feed.root)
+    User.where(feed_link_verified: true).where.not(pubkey: nil).find_each { |user| FeedHydration.refresh(user) }
+  end
 
   private
     # The account making this request, or nil for a visitor.

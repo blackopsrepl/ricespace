@@ -22,11 +22,16 @@ module PeerWrite
   # Whether this node may sign for the account: the node-device is a live,
   # unrevoked device on the feed.
   def self.authorized?(user)
-    return false if user.pubkey.blank? || node_device_public.nil?
+    return false unless user.feed_link_verified? && user.pubkey.present? && node_device_public.present?
 
-    _own, feed = own_feed(user)
-    result = feed.verify
-    return false unless result.ok?
+    result = RiceSpace::P2p::Feed.new(user.pubkey).verify
+    device_authorized?(result)
+  rescue RiceSpace::P2p::Error, SystemCallError
+    false
+  end
+
+  def self.device_authorized?(result)
+    return false unless result.ok? && !result.state["deleted"] && node_device_public.present?
 
     device = result.state["devices"][node_device_public]
     return false if device.nil? || !device["added"]
@@ -63,6 +68,7 @@ module PeerWrite
         feed.append(record)
       end
       PeerSync.import_feed(user.pubkey, feed.records)
+      FeedHydration.acknowledge(user)
     end
     true
   rescue RiceSpace::P2p::Error

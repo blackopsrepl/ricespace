@@ -44,6 +44,8 @@ module PeerSync
       have_hashes = peer.records.pluck(:record_hash).compact.to_set
       fresh = records.reject { |record| have_hashes.include?(RiceSpace::P2p::Record.hash_of(record)) }
         .sort_by { |record| record["seq"] }
+      next { imported: 0, compromised: peer.compromised?, errors: [] } if fresh.empty?
+
       chain = peer.records.order(:seq).map(&:to_p2p) + fresh
       result = RiceSpace::P2p::Record.verify_chain(chain)
       if result.forks.any?

@@ -17,6 +17,7 @@ class Peer < ApplicationRecord
     primary_key: :pubkey, dependent: :delete_all
 
   scope :followed, -> { where(followed: true) }
+  scope :visible, -> { followed.where(compromised: false, deleted: false) }
 
   # This node's own feed, bound to the local account.
   def self.own
@@ -57,7 +58,7 @@ class Peer < ApplicationRecord
 
   def current_reactions
     latest = {}
-    PeerRecord.where(kind: "reaction").order(:id).each do |record|
+    PeerRecord.where(author_pubkey: Peer.visible.select(:pubkey), kind: "reaction").order(:id).each do |record|
       body = record.parsed_body
       next unless body["target_feed"] == pubkey
       next unless body["target_hash"].is_a?(String) && !body["target_hash"].empty?
@@ -68,7 +69,7 @@ class Peer < ApplicationRecord
   end
 
   def comments_on(record_hash)
-    PeerRecord.where(kind: "comment").select do |record|
+    PeerRecord.where(author_pubkey: Peer.visible.select(:pubkey), kind: "comment").select do |record|
       record.parsed_body["parent_hash"] == record_hash
     end.sort_by(&:seq)
   end

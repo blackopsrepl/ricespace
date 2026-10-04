@@ -10,6 +10,9 @@ class StudioController < ApplicationController
   before_action :require_authentication
 
   def show
+    session[:feed_challenge] = FeedLink.challenge(current_user, request.base_url)
+    session[:feed_challenge_at] = Time.current.to_i
+    @feed_challenge = session[:feed_challenge]
     @profile = current_user.profile
     @tokens = current_user.agent_tokens.recent_first
     @issued_token = flash[:agent_token]

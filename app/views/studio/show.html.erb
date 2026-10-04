@@ -463,16 +463,22 @@
     <span class="label text-zinc-600">optional</span>
   </h2>
   <p class="mt-5 max-w-2xl text-zinc-400">
-    Paste the master key from <code class="text-zinc-300">ricespace identity show</code> and this
-    node speaks as your feed: your saves publish into it, and your reactions on replicated
-    pages are signed as you. Leave it empty to stay local-only.
+    First authorise this node device: <code><%= PeerWrite.node_device_public || "operator must configure a node device key" %></code>.
+    Sign the challenge below with <code>ricespace identity prove '&lt;challenge&gt;'</code> on your master machine,
+    then paste the feed key and signature here. The proof expires after ten minutes.
+    A public key alone cannot claim an account. Leave the key empty to unlink.
   </p>
 
+  <pre class="mt-3 overflow-x-auto" data-feed-challenge="<%= @feed_challenge %>"><%= @feed_challenge %></pre>
+  <% if current_user.feed_sync_status.present? %>
+    <p role="status"><%= current_user.feed_sync_status %></p>
+  <% end %>
   <%= form_with model: current_user, url: link_feed_account_path, method: :patch,
         class: "mt-5 flex max-w-2xl flex-wrap items-center gap-2" do |form| %>
     <%= form.text_field :pubkey, value: current_user.pubkey,
           placeholder: "64 hex characters — or nothing",
           spellcheck: false, class: "field min-w-0 flex-1 font-mono text-xs" %>
+    <%= form.text_field :proof, placeholder: "Master signature of the challenge", class: "field font-mono text-xs" %>
     <%= form.submit current_user.pubkey.present? ? "Relink" : "Link feed", class: "btn" %>
   <% end %>
 

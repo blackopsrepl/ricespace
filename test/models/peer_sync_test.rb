@@ -40,6 +40,7 @@ class PeerSyncTest < ActiveSupport::TestCase
   test "a score assembles from replicated reactions" do
     owner = Keys.generate
     reactor = Keys.generate
+    Peer.create!(pubkey: reactor[:public_hex], followed: true)
     page = build(owner, owner, 1, Record::GENESIS_PREV, "page", { "document" => "x" })
     reaction = build(reactor, reactor, 1, Record::GENESIS_PREV, "reaction",
       { "target_feed" => owner[:public_hex], "target_hash" => Record.hash_of(page), "opinion" => "like" })
@@ -53,6 +54,7 @@ class PeerSyncTest < ActiveSupport::TestCase
   test "a changed mind counts once, and a withdrawal counts zero" do
     owner = Keys.generate
     reactor = Keys.generate
+    Peer.create!(pubkey: reactor[:public_hex], followed: true)
     page = build(owner, owner, 1, Record::GENESIS_PREV, "page", { "document" => "x" })
     target = Record.hash_of(page)
     like = build(reactor, reactor, 1, Record::GENESIS_PREV, "reaction",

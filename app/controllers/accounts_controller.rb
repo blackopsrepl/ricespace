@@ -18,22 +18,24 @@ class AccountsController < ApplicationController
     end
   end
 
-  # Link this account to its P2P feed: paste the master public key from
-  # `ricespace identity show`, and this node renders that feed as yours —
-  # publishing your writes into it and signing your remote reactions as you.
   def link_feed
-    key = params.require(:user).permit(:pubkey)[:pubkey].to_s.strip.downcase
-    if key.match?(Peer::HEX) || key.empty?
-      current_user.update!(pubkey: key.presence)
-      PeerWrite.own_feed(current_user) if key.present?
-      redirect_to studio_path, notice: key.present? ?
-        "Linked — this node now speaks as #{RiceSpace::P2p::Canonical.short_id(key)}." :
-        "Unlinked — this account is local-only again."
-    else
-      redirect_to studio_path, alert: "That is not a key — paste the 64 hex characters from `ricespace identity show`."
+    attributes = params.require(:user).permit(:pubkey, :proof)
+    key = attributes[:pubkey].to_s
+    if key.empty?
+      FeedLink.unlink!(current_user)
+      return redirect_to studio_path, notice: "Unlinked — this account is local-only again."
     end
-  rescue ActiveRecord::RecordInvalid => error
-    redirect_to studio_path, alert: error.record.errors.full_messages.to_sentence
+    raise RiceSpace::P2p::Error, "A feed key is exactly 64 lowercase hex characters." unless key.match?(Peer::HEX)
+
+    challenge = session.delete(:feed_challenge)
+    issued = session.delete(:feed_challenge_at).to_i
+    unless challenge.present? && issued > 10.minutes.ago.to_i && issued <= Time.current.to_i
+      raise RiceSpace::P2p::Error, "Open the studio for a fresh ownership challenge."
+    end
+    FeedLink.link!(current_user, key, attributes[:proof].to_s, challenge)
+    redirect_to studio_path, notice: "Linked — verified feed imported; editor refresh uses draft protection."
+  rescue RiceSpace::P2p::Error, ActiveRecord::ActiveRecordError, SystemCallError => error
+    redirect_to studio_path, alert: error.is_a?(RiceSpace::P2p::Error) ? error.message : "Feed linking failed; nothing was linked."
   end
 
   def destroy

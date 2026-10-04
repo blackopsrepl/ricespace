@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_04_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_04_000003) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -152,7 +152,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_000002) do
   create_table "peers", force: :cascade do |t|
     t.string "pubkey", null: false
     t.string "petname"
-    t.boolean "followed", default: true, null: false
+    t.boolean "followed", default: false, null: false
     t.boolean "self_feed", default: false, null: false
     t.integer "latest_seq", default: 0, null: false
     t.string "latest_hash"
@@ -246,6 +246,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_04_000002) do
     t.boolean "admin", default: false, null: false
     t.datetime "last_seen_at"
     t.string "pubkey"
+    t.boolean "feed_link_verified", default: false, null: false
+    t.json "feed_snapshot", default: {}, null: false
+    t.string "feed_sync_status"
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
     t.index ["pubkey"], name: "index_users_on_pubkey", unique: true
     t.index ["username"], name: "index_users_on_username", unique: true

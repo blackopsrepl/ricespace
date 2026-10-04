@@ -9,14 +9,17 @@ class PeersController < ApplicationController
   # Every held feed: petname, short id, seq, health. The directory this node
   # computes from what it actually holds — not a registry, a replica list.
   def index
-    @peers = Peer.order(updated_at: :desc)
+    @peers = Peer.followed.order(updated_at: :desc)
     @own = Peer.own
   end
 
   # One replicated page, read-only, rendered through the same cleaners as a
   # local page. A lazy renderer is how XSS ships; this one is not lazy.
   def show
-    @peer = Peer.find_by!(pubkey: params[:pubkey])
+    @peer = Peer.followed.find_by!(pubkey: params[:pubkey])
+    return render plain: "This feed is closed.", status: :gone if @peer.deleted?
+    return render plain: "This feed is compromised.", status: :conflict if @peer.compromised?
+
     document = @peer.latest_document
     return render plain: "no page replicated for #{@peer.short_id}", status: :not_found if document.nil?
 
