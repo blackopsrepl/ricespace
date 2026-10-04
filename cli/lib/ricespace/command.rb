@@ -13,7 +13,9 @@ module RiceSpace
   class Command
     PAGE_COMMANDS = %w[show pull push rice links demos hardware blurbs friends].freeze
     RATE_COMMANDS = %w[show set].freeze
-    FOLDER_COMMANDS = %w[clone push preview watch].freeze
+    FOLDER_COMMANDS = %w[clone push preview watch sign verify export goodbye prune].freeze
+    IDENTITY_COMMANDS = %w[create join show backup device-add device-revoke rotate recover endorse].freeze
+    PEER_COMMANDS = %w[serve add list remove sync keygen].freeze
 
     # The one sentence a person is given when they type something the CLI cannot do.
     HELP = <<~TEXT
@@ -41,8 +43,31 @@ module RiceSpace
                                    or on one thing they posted
         folder clone [dir]         Write your space out as a folder of files
         folder push [dir]          Send the folder to your space
-        folder preview [dir]       Draw the folder locally, with the site's renderer
-        folder watch [dir]         Push on every save
+        folder preview [dir]       Draw the folder, with the site's own cleaner
+        folder watch [dir]         Push on save — editor on one side, your page on the other
+        folder sign [dir]          Seal the folder into your signed feed
+        folder verify [dir]        Check the folder against its signature
+        folder export [dir] [out]  A static copy any file server can host
+        folder goodbye [--message]
+                                   Close this feed (tombstone, does not undo)
+        folder prune <name|key>    Drop somebody's replica off this disk
+        identity create            A new account: a keypair on this machine
+        identity join <key>        A second workstation under an existing account
+        identity show              Who this machine speaks for
+        identity backup            The master key, for paper
+        identity device-add <key>  Authorise a device (master-signed)
+        identity device-revoke <key>
+                                   Cut a device off
+        identity rotate            Hand signing to a fresh key (master-signed)
+        identity recover           Reclaim a lost account via your friends
+        identity endorse <feed> <seq> <prev> <new-master>
+                                   Vouch for a friend's recovery, as their friend
+        peer serve                 Answer sync requests (this machine's server)
+        peer add <key> <name>      Follow somebody: peer add <hex> ron --at host:port
+        peer list                  Who you follow, and where they were last seen
+        peer remove <name|key>     Unfollow
+        peer sync [name|key]       Pull follows up to date
+        peer keygen                A device key for a node operator
 
       Options
         -H, --url URL              Where the space is (env RICESPACE_URL)
@@ -118,6 +143,8 @@ module RiceSpace
       when "page" then page_command
       when "rate" then rate_command
       when "folder" then folder_command
+      when "identity" then identity_command
+      when "peer" then peer_command
       else
         raise UsageError, "unknown command #{command.inspect} — run `ricespace help`"
       end
@@ -467,9 +494,567 @@ module RiceSpace
       when "push" then folder_push
       when "preview" then folder_preview
       when "watch" then folder_watch
+      when "sign" then folder_sign
+      when "verify" then folder_verify
+      when "export" then folder_export
+      when "goodbye" then folder_goodbye
+      when "prune" then folder_prune
       else
         raise UsageError, "unknown folder command #{sub.inspect} — one of: #{FOLDER_COMMANDS.join(", ")}"
       end
+    end
+
+    # ---- identity -----------------------------------------------------------------------
+
+    def identity_command
+      sub = @argv.shift
+      raise UsageError, "identity needs one of: #{IDENTITY_COMMANDS.join(", ")}" if sub.nil?
+
+      case sub
+      when "create" then identity_create
+      when "join" then identity_join
+      when "show" then identity_show
+      when "backup" then identity_backup
+      when "device-add" then identity_device_add
+      when "device-revoke" then identity_device_revoke
+      when "rotate" then identity_rotate
+      when "recover" then identity_recover
+      when "endorse" then identity_endorse
+      else
+        raise UsageError, "unknown identity command #{sub.inspect} — one of: #{IDENTITY_COMMANDS.join(", ")}"
+      end
+    end
+
+    def identity_create
+      dir = Config::DIRECTORY
+      if P2p::Identity.exists?(dir)
+        raise UsageError, "this machine already speaks for somebody — see `ricespace identity show`"
+      end
+
+      name = option("--name") || hostname
+      Ui.wordmark
+      Ui.notice("A new account lives in its keypair. The master key stays on this machine;")
+      Ui.key_value("note", "write the backup down when it is printed — it is the only copy")
+
+      master_pass = P2p::Keys.ask_passphrase("a passphrase for the master key")
+      raise UsageError, "the master key needs a passphrase" if master_pass.empty?
+      if (advice = P2p::Keys.passphrase_advice(master_pass))
+        raise UsageError, "that passphrase is too weak for the master key: #{advice}"
+      end
+
+      confirm = P2p::Keys.ask_passphrase("again, to be sure")
+      raise UsageError, "the two passphrases do not match" unless confirm == master_pass
+
+      identity = P2p::Identity.create(
+        dir: dir, device_name: name,
+        master_passphrase: master_pass, device_passphrase: master_pass
+      )
+
+      # The first record: this device may sign for this feed. Without it the
+      # device key is a stranger to its own account.
+      master_secret = identity.unlock_master(master_pass)
+      feed = P2p::Feed.new(identity.master_public)
+      feed.append(P2p::Record.build(
+        author: identity.master_public, signer: identity.master_public,
+        seq: 1, prev: P2p::Record::GENESIS_PREV,
+        kind: "device-add", body: { "device" => identity.device_public },
+        sign_with: master_secret
+      ))
+
+      Ui.ok("Created.")
+      Ui.key_value("account", identity.short_id)
+      Ui.key_value("master", identity.master_public)
+      Ui.key_value("device", "#{identity.device_name} (#{identity.device_public[0, 12]})")
+      Ui.key_value("feed", "seq 1 — this device may sign")
+    end
+
+    # A second workstation under an existing account: this machine gets its own
+    # device key and only the master's public half. The owner then authorises
+    # the new device from a machine holding the master (`identity device-add`),
+    # and sync carries the authorisation over.
+    def identity_join
+      master = @argv.shift
+      raise UsageError, "identity join needs the account's master key" if master.nil?
+      raise UsageError, "not a key" unless P2p::Keys.valid_public?(master)
+
+      dir = Config::DIRECTORY
+      if P2p::Identity.exists?(dir)
+        raise UsageError, "this machine already speaks for somebody — see `ricespace identity show`"
+      end
+
+      name = option("--name") || hostname
+      device_pass = P2p::Keys.ask_passphrase("a passphrase for this device's key")
+      raise UsageError, "the device key needs a passphrase" if device_pass.empty?
+      if (advice = P2p::Keys.passphrase_advice(device_pass))
+        Ui.warn("weak passphrase: #{advice}")
+      end
+
+      identity = P2p::Identity.join(
+        dir: dir, device_name: name,
+        master_public: master, device_passphrase: device_pass
+      )
+
+      Ui.wordmark
+      Ui.ok("Joined #{identity.short_id} as #{name}.")
+      Ui.key_value("device", identity.device_public)
+      Ui.key_value("next", "from the master machine: `identity device-add #{identity.device_public}`")
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    def identity_show
+      identity = P2p::Identity.load(Config::DIRECTORY)
+      feed = P2p::Feed.new(identity.master_public)
+      result = feed.verify
+
+      Ui.wordmark
+      Ui.key_value("account", identity.short_id)
+      Ui.key_value("master", identity.master_public)
+      Ui.key_value("device", "#{identity.device_name} (#{identity.device_public[0, 12]})")
+      Ui.key_value("feed", "seq #{result.state["seq"]}, #{result.ok? ? "clean" : "BROKEN: #{result.errors.first}"}")
+      Ui.key_value("friends", result.state["friends"].size.to_s)
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    def identity_backup
+      identity = P2p::Identity.load(Config::DIRECTORY)
+      passphrase = P2p::Keys.ask_passphrase("the master passphrase")
+      secrets = identity.backup(passphrase)
+
+      Ui.wordmark
+      Ui.notice("Write this down, on paper, in two places. It IS the account.")
+      puts
+      puts "  master public: #{secrets["master_public"]}"
+      puts "  master secret: #{secrets["master_secret"]}"
+      puts
+      Ui.key_value("warning", "anybody holding the secret is you — no passphrase protects paper")
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    # ---- peer ---------------------------------------------------------------------------
+
+    def peer_command
+      sub = @argv.shift
+      raise UsageError, "peer needs one of: #{PEER_COMMANDS.join(", ")}" if sub.nil?
+
+      case sub
+      when "serve" then peer_serve
+      when "add" then peer_add
+      when "list" then peer_list
+      when "remove" then peer_remove
+      when "sync" then peer_sync
+      when "keygen" then peer_keygen
+      else
+        raise UsageError, "unknown peer command #{sub.inspect} — one of: #{PEER_COMMANDS.join(", ")}"
+      end
+    end
+
+    # A fresh device key for a node operator: the public half goes on the
+    # /peers page, the secret into RICESPACE_NODE_SECRET_FILE. Printed once —
+    # there is nowhere it is stored.
+    def peer_keygen
+      keypair = P2p::Keys.generate
+
+      Ui.wordmark
+      Ui.notice("A device key for a node. The secret lives in one file on that node.")
+      puts
+      puts "  public: #{keypair[:public_hex]}"
+      puts "  secret: #{keypair[:private_hex]}"
+      puts
+      Ui.key_value("node", "put the secret in RICESPACE_NODE_SECRET_FILE, mode 0600")
+      Ui.key_value("owner", "authorise the public half with `identity device-add`")
+    end
+
+    def peer_serve
+      identity = p2p_identity
+      peers = P2p::Peers.load(Config::DIRECTORY)
+      port = (option("--port") || ENV["RICESPACE_PEER_PORT"] || P2p::Sync::DEFAULT_PORT).to_i
+      lan = !@argv.include?("--no-lan")
+      passphrase = ENV["RICESPACE_PASSPHRASE"] || P2p::Keys.ask_passphrase("the device passphrase")
+      private_hex = begin
+        identity.unlock_device(passphrase)
+      rescue P2p::Error => error
+        raise UsageError, error.message
+      end
+
+      Ui.wordmark
+      Ui.notice("Serving #{identity.short_id} on port #{port} — Ctrl-C to stop.")
+      Ui.key_value("follows", peers.follows.size.to_s)
+      Ui.key_value("lan", lan ? "announcing + listening" : "off")
+      Ui.key_value("wire", "TLS, pinned to known keys — strangers fail closed")
+
+      P2p::Sync.serve(port: port, identity: identity, peers: peers,
+        private_hex: private_hex, lan: lan).run
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    def peer_add
+      key = @argv.shift
+      petname = @argv.shift
+      raise UsageError, "peer add needs a key and a petname: peer add <hex> ron --at host:port" if
+        key.nil? || petname.nil?
+
+      at = option("--at")
+      addrs = at ? [ at ] : []
+      peers = P2p::Peers.load(Config::DIRECTORY)
+      peers.add(key, petname: petname, addrs: addrs)
+
+      record_follow(key, petname)
+
+      Ui.wordmark
+      Ui.ok("Following #{P2p::Names.display(petname, key)}.")
+      Ui.key_value("at", addrs.first || "(no address yet — add one with --at, or meet on LAN)")
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    def peer_list
+      identity = p2p_identity
+      peers = P2p::Peers.load(Config::DIRECTORY)
+
+      Ui.wordmark
+      Ui.key_value("you", identity.short_id)
+      if peers.follows.empty?
+        puts "  #{Ui.send(:dim, "following nobody — peer add <key> <name>")}"
+        return
+      end
+
+      peers.follows.each do |pub, entry|
+        feed = P2p::Feed.new(pub)
+        result = feed.verify
+        state = result.ok? ? "seq #{result.state["seq"]}" : "BROKEN: #{result.errors.first}"
+        name = entry.is_a?(Hash) ? entry["petname"] : ""
+        addrs = entry.is_a?(Hash) ? Array(entry["addrs"]) : []
+        Ui.key_value(name.empty? ? P2p::Names.short(pub) : name,
+          "#{P2p::Names.short_pair(pub)} · #{state} · #{addrs.first || "no address"}")
+      end
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    def peer_remove
+      who = @argv.shift
+      raise UsageError, "peer remove needs a petname or a key" if who.nil?
+
+      peers = P2p::Peers.load(Config::DIRECTORY)
+      pub = resolve_follow(peers, who)
+      raise UsageError, "not following #{who.inspect}" if pub.nil?
+
+      peers.remove(pub)
+      record_unfollow(pub)
+
+      Ui.wordmark
+      Ui.ok("Unfollowed #{P2p::Names.short(pub)}.")
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    def peer_sync
+      identity = p2p_identity
+      peers = P2p::Peers.load(Config::DIRECTORY)
+      who = @argv.reject { |arg| arg.start_with?("--") }.first
+
+      dials = peers.dial_list
+      targets = if who
+        pub = resolve_follow(peers, who) || (P2p::Keys.valid_public?(who) ? who : nil)
+        raise UsageError, "not following #{who.inspect} — peer add it first" if pub.nil?
+
+        # Every address held for this feed, plus every other follow's address
+        # (replicas: a mutual may serve the owner-offline feed).
+        dials.select { |candidate, _, _| candidate == pub } +
+          dials.reject { |candidate, _, _| candidate == pub }.map { |_, addr, via| [ pub, addr, via ] }
+      else
+        dials
+      end
+
+      if targets.empty?
+        Ui.wordmark
+        Ui.notice("Nobody to sync with — no addresses. peer add --at, or meet on LAN.")
+        return
+      end
+
+      Ui.wordmark
+      passphrase = ENV["RICESPACE_PASSPHRASE"] || P2p::Keys.ask_passphrase("the device passphrase")
+      private_hex = begin
+        identity.unlock_device(passphrase)
+      rescue P2p::Error => error
+        raise UsageError, error.message
+      end
+
+      total = 0
+      shown = {}
+      targets.each do |pub, addr, via|
+        host, port = addr.split(":", 2)
+        begin
+          # Pinned to the serving node's key: the cert must carry a key of
+          # the account at this address, or the session dies before HELLO.
+          # A dial entry pointing at an impostor fails here.
+          device_key = dial_device_key(via)
+          gained = P2p::Sync.pull(host, port || P2p::Sync::DEFAULT_PORT,
+            identity: identity, peers: peers, private_hex: private_hex,
+            expected_key: device_key || via)
+          count = gained.values.sum
+          total += count
+          shown[pub] = (shown[pub] || 0) + count
+        rescue P2p::Error => error
+          shown[pub] = shown.fetch(pub, "unreachable (#{error.message})")
+        end
+      end
+      shown.each do |pub, count|
+        Ui.key_value(P2p::Names.short(pub), count.is_a?(Integer) ? (count.zero? ? "up to date" : "+#{count} records") : count)
+      end
+      Ui.ok("Synced #{total} new records.") unless total.zero?
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    # The device key to pin when dialing an account's own address: the live
+    # device learned from their feed, else their master key. Either way the
+    # cert must carry a key belonging to that account — never just any cert.
+    def dial_device_key(pub)
+      feed = P2p::Feed.new(pub)
+      result = feed.verify
+      return nil unless result.ok?
+
+      devices = result.state["devices"].reject { |_key, device| device["revoked"] }
+      live = devices.keys.first
+      live == pub ? nil : live
+    rescue P2p::Error
+      nil
+    end
+
+    # Signing the follow into our own feed, so any verifier of the feed sees
+    # the same friends list we sync by. The device signs; follows are content,
+    # not account management.
+    def record_follow(pub, petname)
+      identity = p2p_identity
+      passphrase = ENV["RICESPACE_PASSPHRASE"] || P2p::Keys.ask_passphrase("the device passphrase")
+      private_hex = identity.unlock_device(passphrase)
+      feed = P2p::Feed.new(identity.master_public)
+      feed.append(P2p::Record.build(
+        author: identity.master_public, signer: identity.device_public,
+        seq: feed.next_seq, prev: feed.prev_hash,
+        kind: "friend", body: { "peer" => pub.to_s, "petname" => petname.to_s, "action" => "add" },
+        sign_with: private_hex
+      ))
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    def record_unfollow(pub)
+      identity = p2p_identity
+      passphrase = ENV["RICESPACE_PASSPHRASE"] || P2p::Keys.ask_passphrase("the device passphrase")
+      private_hex = identity.unlock_device(passphrase)
+      feed = P2p::Feed.new(identity.master_public)
+      feed.append(P2p::Record.build(
+        author: identity.master_public, signer: identity.device_public,
+        seq: feed.next_seq, prev: feed.prev_hash,
+        kind: "friend", body: { "peer" => pub.to_s, "action" => "remove" },
+        sign_with: private_hex
+      ))
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    def resolve_follow(peers, who)
+      return who if P2p::Keys.valid_public?(who.to_s)
+
+      peers.follows.each do |pub, entry|
+        name = entry.is_a?(Hash) ? entry["petname"].to_s : ""
+        return pub if name == who.to_s
+      end
+      nil
+    end
+
+    # Authorise a device to sign for this feed: a node, a second workstation,
+    # anything holding its own key. Master-signed — this is the owner speaking,
+    # which is why it asks for the master passphrase rather than the device's.
+    def identity_device_add
+      device = @argv.shift
+      raise UsageError, "identity device-add needs the device's key" if device.nil?
+      raise UsageError, "not a key" unless P2p::Keys.valid_public?(device)
+
+      identity = p2p_identity
+      master_secret = identity.unlock_master(P2p::Keys.ask_passphrase("the master passphrase"))
+      feed = P2p::Feed.new(identity.master_public)
+      record = P2p::Record.build(
+        author: identity.master_public, signer: identity.master_public,
+        seq: feed.next_seq, prev: feed.prev_hash,
+        kind: "device-add", body: { "device" => device },
+        sign_with: master_secret
+      )
+      feed.append(record)
+
+      Ui.wordmark
+      Ui.ok("Authorised #{P2p::Canonical.short_id(device)} at seq #{record["seq"]}.")
+      Ui.key_value("note", "sync to carry it — the node sees it on its next import")
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    # Cut a device off: it signed until this seq, and nothing past it verifies.
+    # The cutoff is now rather than zero, so records it signed while it was
+    # yours keep verifying.
+    def identity_device_revoke
+      device = @argv.shift
+      raise UsageError, "identity device-revoke needs the device's key" if device.nil?
+      raise UsageError, "not a key" unless P2p::Keys.valid_public?(device)
+
+      identity = p2p_identity
+      master_secret = identity.unlock_master(P2p::Keys.ask_passphrase("the master passphrase"))
+      feed = P2p::Feed.new(identity.master_public)
+      record = P2p::Record.build(
+        author: identity.master_public, signer: identity.master_public,
+        seq: feed.next_seq, prev: feed.prev_hash,
+        kind: "device-revoke", body: { "device" => device, "cutoff_seq" => feed.next_seq },
+        sign_with: master_secret
+      )
+      feed.append(record)
+
+      Ui.wordmark
+      Ui.ok("Revoked #{P2p::Canonical.short_id(device)} — nothing from seq #{record["seq"]} verifies.")
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    # Hand signing to a fresh key: the old master goes quiet from this seq on.
+    # The new master is generated here and its secret printed once — back it up
+    # the same hour, because from this record on it IS the account.
+    def identity_rotate
+      identity = p2p_identity
+      master_secret = identity.unlock_master(P2p::Keys.ask_passphrase("the master passphrase"))
+
+      fresh = P2p::Keys.generate
+      feed = P2p::Feed.new(identity.master_public)
+      record = P2p::Record.build(
+        author: identity.master_public, signer: identity.master_public,
+        seq: feed.next_seq, prev: feed.prev_hash,
+        kind: "rotation", body: { "new_master" => fresh[:public_hex] },
+        sign_with: master_secret
+      )
+      feed.append(record)
+
+      Ui.wordmark
+      Ui.ok("Rotated at seq #{record["seq"]} — the old master is quiet from here on.")
+      puts
+      puts "  new master public: #{fresh[:public_hex]}"
+      puts "  new master secret: #{fresh[:private_hex]}"
+      puts
+      Ui.key_value("warning", "back the secret up now — it is the account from this seq on")
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    # Reclaim a lost account: a successor key announces itself with your
+    # friends' signatures. The ceremony is deliberately manual — each friend
+    # runs `identity endorse` on their own machine, and you carry the
+    # `friend-key:signature` pairs back here. Majority of the friends on the
+    # feed, and only friends with tenure count (keys stuffed during the attack
+    # cannot elect it).
+    def identity_recover
+      identity = p2p_identity
+      feed = P2p::Feed.new(identity.master_public)
+      result = feed.verify
+      friends = result.state["friends"]
+      raise UsageError, "this feed names no friends — nobody can vouch for it" if friends.empty?
+
+      successor = P2p::Keys.generate
+      seq = feed.next_seq
+      body = { "new_master" => successor[:public_hex] }
+
+      pairs = @argv.reject { |arg| arg.start_with?("--") }
+      if pairs.empty?
+        Ui.wordmark
+        Ui.notice("Each friend runs this on their own machine:")
+        puts
+        puts "  ricespace identity endorse #{identity.master_public} #{seq} #{feed.prev_hash} #{successor[:public_hex]}"
+        puts
+        Ui.key_value("needed", "a majority of #{friends.size} friends, with tenure")
+        Ui.key_value("then", "re-run as: `identity recover friend-key:signature …`")
+        Ui.key_value("successor", successor[:public_hex])
+        Ui.key_value("keep", "this key — it announces itself in the recovery")
+        puts
+        puts "  successor secret: #{successor[:private_hex]}"
+        return
+      end
+
+      endorsements = pairs.filter_map do |pair|
+        friend, sig = pair.split(":", 2)
+        next if friend.nil? || sig.nil?
+        next unless P2p::Keys.valid_public?(friend) && sig.match?(/\A[0-9a-f]{128}\z/i)
+
+        { "friend" => friend.downcase, "sig" => sig.downcase }
+      end
+      raise UsageError, "no usable friend-key:signature pairs" if endorsements.empty?
+
+      record = P2p::Record.build(
+        author: identity.master_public, signer: successor[:public_hex],
+        seq: seq, prev: feed.prev_hash,
+        kind: "recovery",
+        body: body.merge("endorsements" => endorsements),
+        sign_with: successor[:private_hex]
+      )
+      begin
+        feed.append(record)
+      rescue P2p::Error, P2p::ChainError => error
+        raise UsageError, "the recovery was refused: #{error.message}"
+      end
+
+      Ui.wordmark
+      Ui.ok("Recovered at seq #{record["seq"]} — #{successor[:public_hex][0, 12]} speaks from here on.")
+      puts
+      puts "  new master public: #{successor[:public_hex]}"
+      puts "  new master secret: #{successor[:private_hex]}"
+      puts
+      Ui.key_value("warning", "back the secret up now — and tell your follows to sync")
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    # Vouch for a friend's recovery: sign their successor announcement with
+    # your MASTER key — the owner's friends list names master keys, and the
+    # verifier checks each endorsement against the friend it names. A device
+    # signature would never verify. Prints `friend-key:signature` for them to
+    # carry back. Only sign when you actually know them; your signature is
+    # their account.
+    def identity_endorse
+      feed_key, seq_s, prev, new_master = @argv.shift(4)
+      unless P2p::Keys.valid_public?(feed_key.to_s) && seq_s.to_s.match?(/\A\d+\z/) &&
+          prev.to_s.match?(/\A[0-9a-f]{64}\z/i) && P2p::Keys.valid_public?(new_master.to_s)
+        raise UsageError, "endorse needs: identity endorse <feed-key> <seq> <prev-hash> <new-master-key>"
+      end
+
+      identity = p2p_identity
+      master_secret = begin
+        identity.unlock_master(P2p::Keys.ask_passphrase("the master passphrase (endorsements are master-signed)"))
+      rescue P2p::Error => error
+        raise UsageError, error.message
+      end
+
+      bytes = P2p::Canonical.signing_bytes(
+        author: feed_key.downcase, seq: seq_s.to_i, prev: prev.downcase,
+        kind: "recovery", body: { "new_master" => new_master.downcase }
+      )
+      sig = P2p::Keys.sign(master_secret, bytes)
+
+      Ui.wordmark
+      Ui.ok("Endorsed #{P2p::Canonical.short_id(new_master)} for #{P2p::Canonical.short_id(feed_key)}.")
+      puts
+      puts "  #{identity.master_public}:#{sig}"
+      puts
+      Ui.key_value("next", "hand that line to your friend — it goes into their `identity recover`")
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    def hostname
+      require "socket"
+      Socket.gethostname.split(".").first
+    rescue StandardError
+      "laptop"
     end
 
     def folder_clone
@@ -544,6 +1129,132 @@ module RiceSpace
       unless reaches?(url)
         Ui.warn("#{site} is not answering — start it with `make serve`")
       end
+    end
+
+    def folder_sign
+      dir = @argv.reject { |a| a.start_with?("--") }.first || "."
+      everything = @argv.include?("--all")
+      folder = Folder.read(dir)
+
+      identity = p2p_identity
+      passphrase = P2p::Keys.ask_passphrase("the device passphrase")
+      private_hex = begin
+        identity.unlock_device(passphrase)
+      rescue P2p::Error => error
+        raise UsageError, error.message
+      end
+
+      feed = P2p::Feed.new(identity.master_public)
+      Ui.wordmark
+      if everything
+        records = folder.sign_all(feed: feed, private_hex: private_hex, device_public: identity.device_public)
+        kinds = records.map { |record| "#{record["kind"]} #{record["seq"]}" }.join(", ")
+        Ui.ok("Signed #{records.size} records — #{kinds}.")
+      else
+        record = folder.sign(feed: feed, private_hex: private_hex, device_public: identity.device_public)
+        Ui.ok("Signed seq #{record["seq"]} — #{P2p::Record.hash_of(record)[0, 12]}.")
+      end
+      Ui.key_value("account", identity.short_id)
+      Ui.key_value("envelope", File.join(dir, Folder::ENVELOPE))
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    def folder_verify
+      dir = @argv.reject { |a| a.start_with?("--") }.first || "."
+      folder = Folder.read(dir)
+      record = folder.verify!
+
+      Ui.wordmark
+      Ui.ok("The folder is what #{P2p::Canonical.short_id(record["author"])} signed.")
+      Ui.key_value("seq", record["seq"].to_s)
+      Ui.key_value("record", P2p::Record.hash_of(record))
+      Ui.key_value("files", Array(record.dig("body", "files")&.keys).size.to_s)
+    end
+
+    def folder_export
+      args = @argv.reject { |a| a.start_with?("--") }
+      dir = args[0] || "."
+      out = args[1] || "#{dir}-export"
+      folder = Folder.read(dir)
+
+      begin
+        folder.verify!
+      rescue UsageError => error
+        raise UsageError, "not exporting an unsigned folder: #{error.message}"
+      end
+
+      target = folder.export_to(out)
+
+      Ui.wordmark
+      Ui.ok("Exported.")
+      Ui.key_value("to", target.to_s)
+      Ui.key_value("serve", "cd #{target} && ruby -run -e httpd . -p 8000")
+    end
+
+    # Close this feed: a tombstone asks honest peers to drop the body, and
+    # nothing after it verifies. The records stay (proof beats absence), the
+    # page is gone. This does not undo — same as closing the account.
+    def folder_goodbye
+      message = option("--message") || @argv.reject { |a| a.start_with?("--") }.first
+      identity = p2p_identity
+      passphrase = ENV["RICESPACE_PASSPHRASE"] || P2p::Keys.ask_passphrase("the device passphrase")
+      private_hex = begin
+        identity.unlock_device(passphrase)
+      rescue P2p::Error => error
+        raise UsageError, error.message
+      end
+
+      feed = P2p::Feed.new(identity.master_public)
+      body = {}
+      body["message"] = message.to_s[0, 140] unless message.nil?
+      record = P2p::Record.build(
+        author: identity.master_public, signer: identity.device_public,
+        seq: feed.next_seq, prev: feed.prev_hash,
+        kind: "tombstone", body: body,
+        sign_with: private_hex
+      )
+      feed.append(record)
+
+      Ui.wordmark
+      Ui.ok("Said goodbye at seq #{record["seq"]} — honest peers drop the page.")
+      Ui.key_value("note", "replicas keep the proof; nothing new verifies after this")
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    # Drop a replicated feed from this machine: records, assets, the directory.
+    # Your own feed is refused — `folder goodbye` closes it, `prune` is for
+    # other people's copies aging off your disk. Honest and explicit:
+    # retention is otherwise forever-by-default.
+    def folder_prune
+      who = @argv.reject { |a| a.start_with?("--") }.first
+      raise UsageError, "prune needs a petname or a key" if who.nil?
+
+      identity = p2p_identity
+      peers = P2p::Peers.load(Config::DIRECTORY)
+      pub = resolve_follow(peers, who) || (P2p::Keys.valid_public?(who) ? who : nil)
+      raise UsageError, "no feed for #{who.inspect} on this machine" if pub.nil?
+      raise UsageError, "that is your own feed — `folder goodbye` closes it" if pub == identity.master_public
+
+      feed = P2p::Feed.new(pub)
+      dir = feed.dir
+      count = dir.directory? ? dir.children.count { |child| child.file? } : 0
+      require "fileutils"
+      FileUtils.rm_rf(dir) if dir.directory?
+
+      Ui.wordmark
+      Ui.ok("Pruned #{P2p::Names.short(pub)} — #{count} records off this disk.")
+      Ui.key_value("note", "your follows are untouched; sync brings it back if you still follow them")
+    rescue P2p::Error => error
+      raise UsageError, error.message
+    end
+
+    # This machine's P2P identity, or a sentence saying it has none yet.
+    def p2p_identity
+      P2p::Identity.load(Config::DIRECTORY)
+    rescue P2p::Error => error
+      raise UsageError, error.message
     end
 
     def folder_watch

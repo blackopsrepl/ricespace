@@ -5,13 +5,15 @@ module RiceSpace
   # added to the CLI is completed without anybody remembering to update three more files.
   module Completions
     COMMANDS = %w[
-      login whoami ping contract completions page rate folder help
+      login whoami ping contract completions page rate folder identity peer help
     ].freeze
 
     SUBCOMMANDS = {
       "page" => %w[show pull push rice links demos hardware blurbs friends],
       "rate" => %w[show set],
-      "folder" => %w[clone push preview watch]
+      "folder" => %w[clone push preview watch sign verify export goodbye prune],
+      "identity" => %w[create join show backup device-add device-revoke rotate recover endorse],
+      "peer" => %w[serve add list remove sync keygen]
     }.freeze
 
     GLOBAL_FLAGS = %w[--url --token --json --no-colour --quiet --help --version].freeze
@@ -55,6 +57,8 @@ module RiceSpace
               page)   local subs="#{SUBCOMMANDS["page"].join(" ")}" ;;
               rate)   local subs="#{SUBCOMMANDS["rate"].join(" ")}" ;;
               folder) local subs="#{SUBCOMMANDS["folder"].join(" ")}" ;;
+              identity) local subs="#{SUBCOMMANDS["identity"].join(" ")}" ;;
+              peer) local subs="#{SUBCOMMANDS["peer"].join(" ")}" ;;
               *)      local subs="#{words}" ;;
             esac
 
@@ -132,6 +136,8 @@ module RiceSpace
           "page" => "your page and your rice",
           "rate" => "what people think of your page",
           "folder" => "a folder that is your space",
+          "identity" => "who this machine speaks for",
+          "peer" => "sync with follows, peer to peer",
           "help" => "print the help"
         }[command].to_s
       end
