@@ -1,8 +1,12 @@
 # Internet networking
 
-The design for the networking release (v0.6.0). Read this before touching
-`cli/lib/ricespace/net/`. One implementable design, not a catalogue: every
-rejected alternative is one line, then the choice stands.
+The implemented networking design. Read this before touching
+`cli/lib/ricespace/net/`. One workflow: ordinary `peer serve` manages outbound
+rendezvous for its follows, and ordinary `peer sync` walks the existing dial
+ladder.
+
+Architecture map: [full-resolution HTML/SVG](ricespace-architecture.html) ·
+[PNG preview](assets/ricespace-architecture.png).
 
 Two facts decide everything below:
 
@@ -32,12 +36,13 @@ Live evidence (all probes run 2026-10-04 from residential egress, no IPv6):
 | Problem | Mechanism | Protocol / code | Why this one |
 |---|---|---|---|
 | Internet discovery | Mainline DHT, BEP5 routing + BEP44 mutable slots | stdlib KRPC client, `net/bencode.rb` + `net/dht.rb` | Peer-run by millions of BitTorrent users; BEP44 was written as a general KV store, not only for torrents. A RiceSpace-specific DHT would need its own bootstrap fleet — owner infrastructure by another name. |
+| Volunteer relay directory | BEP5 `get_peers`/`announce_peer` on a RiceSpace topic; only public IPv4 candidates are used | `net/dht.rb`, `net/relays.rb`, `net/rendezvous.rb` | Discovery is untrusted; a candidate must still complete the relay protocol, and peer TLS remains end-to-end pinned. No maintained relay fleet is assumed. |
 | Endpoint records | One mutable slot per device, salt `ricespace-ep-v1` | `net/endpoint.rb`, signed with `Canonical.signing_bytes` (kind `endpoint`) | Master stays offline: each device publishes its own slot with a key it already holds online. Multiple devices fall out free. |
 | Candidate addresses | UPnP IGD port mapping + NAT-PMP + STUN observation + manual `--at` + LAN beacon (kept) | stdlib SSDP/SOAP (`net/upnp.rb`), 12-byte NAT-PMP (`net/natpmp.rb`), RFC5389 binding client (`net/stun.rb`) | All stdlib-sized protocols; no gems, gemspec stays dependency-free. |
 | NAT characterisation | STUN mapping-behaviour test (two servers) + UPnP presence | `net/nat.rb` | Best-effort labels, always stating how determined. Never equated with reachability. |
-| Traversal | Unchanged TCP + TLS + pinning; dial ladder direct → DHT-found → friend relay → open rendezvous | `sync.rb` extensions + `net/relay.rb` | No UDP punching (wrong transport). TCP simultaneous-open was cut: it fails exactly where it is needed (symmetric NAT), and untestable code is not a rung. |
+| Traversal | Unchanged TCP + TLS + pinning; dial ladder direct → DHT-found → friend relay → open rendezvous | `sync.rb` + `net/relay.rb` + `net/rendezvous.rb` | No UDP punching: sync is TCP, and an open rendezvous is the reliable outbound-only rung. |
 | Friend fallback | Opt-in TCP byte-bridge through a followed reachable peer | `BRIDGE` wire messages, `peer serve --relay` | Forwards bytes, not records: end-to-end TLS and pinning survive the relay untouched. The relay cannot read or forge. |
-| Open rendezvous | Volunteer relays splice two strangers by single-use ticket | `ALLOC`/`JOIN`/`PAIRED` + BYTES shuttle, `peer serve --relay-open`, `net wait` | Both sides dial out (no NAT objects); no prior contact, no shared friend. Shipped list starts empty — volunteers PR themselves in, same as seeds. |
+| Open rendezvous | Ordinary serving publishes a pair-scoped single-use ticket per follow; open relays advertise themselves on Mainline DHT | `ALLOC`/`JOIN`/`PAIRED` + BYTES shuttle, `peer serve`, `peer serve --relay-open` | Both sides dial out. `peer sync` uses the existing ladder; no separate ticket command is required. A reachable volunteer must be online. |
 | Owner-offline serving | Unchanged replica serving | existing `serve_want` path | Already the delivery story; friends carry copies. |
 
 ## 2. Dependency and interoperability evidence
@@ -105,7 +110,8 @@ Published as the BEP44 `v` (bencoded dict, ≤ 1000 bytes), signed by the
   "addrs": ["h:p", ...],         # ≤ 4, observed or mapped only
   "at": <unix>,                  # publication time
   "exp": <unix>,                 # at + 7200 (2 h, DHT republication period)
-  "relay": ["h:p", ...] }        # ≤ 2 consenting bridges that carry this feed
+  "relay": ["h:p", ...],         # ≤ 2 consenting bridges that carry this feed
+  "ticket": { ... } }            # optional ticket in a pair-scoped slot
 ```
 
 Signature: `Keys.sign(device_priv, Canonical.signing_bytes(author: node,
@@ -121,10 +127,16 @@ Verification (every consumer, every time):
    of the held feed and require `devices[device].added` with no revocation
    cutoff ≤ `at`, or master == device, or current owner == device. A signed
    endpoint from a never-authorised key is gossip noise, not an address.
-4. `exp` in the future and `at` within ±600 s of now, else stale (replay).
+4. `exp` is in the future and `at` is within the 7,800-second TTL/skew window, else stale (replay).
 5. `addrs` parse as `host:port`, ≤ 4 entries, no `0.0.0.0`, no port 0.
    Private-range addresses are kept but flagged `lan-only`.
 6. `relay` entries parse the same way, ≤ 2.
+
+Rendezvous tickets are separate mutable slots: the target is the device key
+plus a deterministic salt derived from the follower's master key. The record
+contains the relay address, one-use secret, intended follower key and expiry.
+This isolates ticket updates per follow; the salt is public, not an encryption
+key.
 
 Recorded into `peers.json` as `{pub => {addrs, relay, ep_at, ep_exp}}`; gossip
 `ADDR` messages carry them with the same checks; unverified endpoint data
@@ -136,9 +148,9 @@ Dial ladder per follow (each rung bounded by `CONNECT_TIMEOUT`, whole ladder
 bounded by 60 s):
 
 ```
-LAN map → manual --at → DHT addrs (in-slot order) → relay bridges
-  found        ok       ok                     ok
-   │            │        │                      │
+LAN map → manual --at → DHT addresses → friend relay bridges → open rendezvous
+  found        ok          ok                 ok                    ticket
+   │            │           │                  │
    └──── PIN FAIL → next rung (a pin failure never falls back to
                    unauthenticated — it fails the rung, not the ladder)
 ```
@@ -175,7 +187,8 @@ both pinned to each other's device keys. Tickets are 64-bit, single-use,
 5 min expiry, signalled through the waiter's own signed endpoint slot (the
 `ticket` field names the relay, the secret and the peer). The joiner's
 control leg to a stranger relay is explicitly unpinned (`:none` — opt-in,
-never default); all trust rides the end-to-end pin plus the ticket secret.
+never default); the ticket locates a relay session, while peer identity and
+feed trust ride the end-to-end device pin and signed records.
 Abuse bounds: ≤ 8 sessions, ≤ 64 tickets, same 32 MB / 10 min caps; a hostile
 relay sees ciphertext and timing and can drop — the ladder moves on.
 
@@ -188,8 +201,8 @@ relay sees ciphertext and timing and can drop — the ladder moves on.
 - `device-revoke` and `rotation`/`recovery` invalidate future slots from the
   old key immediately; in-flight `addrs` entries expire by `exp` (≤ 2 h) and
   are re-verified against fresh chain state on every sync.
-- Sequence: BEP44 `seq` is wall-clock publication time; storing nodes keep
-  the higher `seq`, so a republish always wins and a replayed slot loses.
+- Sequence: each BEP44 publish fetches current replica sequences and uses
+  `max(now, highest + 1)`, so immediate renewals still advance and replays lose.
 - First contact (no feed history yet): the slot's device may pin the TLS
   session provisionally — authentication of the binding, not authorisation of
   the device. Records fetched over it still verify against the master key
@@ -217,12 +230,14 @@ Budgets (constants beside the code, all tested):
 
 Privacy (stated honestly, shown to the user by `peer status --privacy`):
 
-- DHT slots are public: `(master-pub, device-pub, addrs, relay-addrs)` is
-  readable by anyone who derives the target. Discovery metadata is connection
-  metadata — it says where to dial, never what the feed contains, who follows
-  whom, or anything past the seq that gossip already leaks.
-- Mitigations: slots carry no petnames, no follow lists, no seq numbers;
-  node ids are random per process; HAVE stays per-feed post-pinning.
+- DHT slots are public: endpoint slots expose keys and dial addresses;
+  pair-scoped rendezvous slots additionally expose the volunteer relay, intended
+  follower key, expiry and one-use ticket secret to anyone who derives the
+  public target. They reveal a specific rendezvous relationship, not the full
+  follow list or feed contents.
+- Mitigations: slots carry no petnames or feed content; pair salts isolate
+  ticket updates but are public and do not hide the ticket. Node ids are random
+  per process; HAVE stays per-feed post-pinning.
 - Adversarial catalogue: **poisoning** (bad slots fail signature/device
   checks — stored nowhere); **eclipse/Sybil** (8-way replication + majority
   `get`; a determined eclipse delays but the ladder falls back to manual/LAN);
@@ -235,41 +250,46 @@ Privacy (stated honestly, shown to the user by `peer status --privacy`):
   one bounded response out); **relay abuse** (consent-only, byte-capped,
   content-opaque).
 
-What remains impossible: nothing short of a network partition. Two
-outbound-only peers with no mutual friend sync via TCP simultaneous-open
-(where the NATs allow) or via an open rendezvous relay neither has met
-before. The ladder (§5) always has a rung left; `unreachable` is reported
-only when every rung provably failed, with which one and why.
+Two outbound-only peers cannot sync when every direct path fails and no
+reachable volunteer relay is online. DHT is discovery, not transport. The
+ladder reports failure when its direct and relay candidates are exhausted.
 
-Correction to an earlier claim: BitTorrent does not connect two unreachable
-peers with no third party either — it punches permissive NATs via
-tracker/DHT rendezvous and stalls on symmetric↔symmetric. The difference is
-not magic, it is one more rung (simultaneous-open) plus relays that do not
-require prior friendship. Both are below; both are peer-run.
+Rendezvous ticket slots are public DHT values. Anyone who can derive the
+device slot and follower salt can read the relay, intended peer, expiry and
+one-use secret. The secret is a relay locator, not confidentiality or peer
+authentication: end-to-end TLS still pins the expected device and records are
+verified against the master key. A malicious observer can race a ticket and
+cause a failed one-use attempt; the serving agent retries with a fresh ticket.
 
 ## 8. CLI surface
 
-Normal flow: `identity create` → `net up` → `peer add <key> <name>` →
-`peer sync`. No routine IP exchange: addresses resolve via LAN → DHT →
-gossip, and `peer sync` walks the ladder per follow.
+Normal flow: `identity create` → `net up` → `peer serve` → `peer add` using the
+share command from `peer address` → `peer sync`. The share includes the master
+key and the device key: endpoint slots are indexed by device key, so the master
+key alone cannot resolve a first-contact slot. `peer serve` watches for new
+follows and starts rendezvous allocation automatically. `peer sync` resolves
+the per-follow ticket and joins through its existing ladder.
 
 - `net up` — join discovery (DHT bootstrap, STUN/NAT probe, publish slot,
   show reachability label). `--no-publish` joins without publishing.
 - `net down` — release mappings, stop republication.
-- `peer serve [--relay|--relay-open]` — as before, plus friend bridging
-  (`--relay`) or open stranger rendezvous by ticket (`--relay-open`).
-- `net wait <who> --at relay:port` — the unreachable node that wants to be
-  found: ALLOCs a ticket, publishes it in its own slot, serves when they JOIN.
-- `peer status [name|key]` — discovery state, direct/punched/assisted path,
+- `peer serve` — serves sync requests and automatically allocates tickets for
+  current follows; new follows are picked up by the running server. The
+  rendezvous agent discovers announced volunteer relays through Mainline DHT.
+- `peer serve --relay-open` — additionally accepts stranger tickets and
+  periodically advertises this listener on the DHT relay topic.
+- `net wait <who> --at relay:port` remains a low-level one-off diagnostic; it
+  is not part of the ordinary sync workflow.
+- `peer status [name|key]` — discovery state, direct/DHT/relay/rendezvous path,
   reachability label + how determined, last successful sync, actionable
   failures. `--privacy` explains what the slots expose.
 - `peer sync` — unchanged flags; walks the ladder instead of only stored
   addrs. Manual `--at` stays as the advanced escape hatch and always wins
   rung 2.
 - Laptop sleep / Wi-Fi change / CGNAT reconnect: `net up` re-probes on each
-  invocation; `peer serve` re-publishes hourly and on socket errors; stale
-  slots expire by `exp`; the ladder re-resolves every sync, so a changed
-  endpoint is found without manual updates.
+  invocation; `peer serve` republishes its endpoint hourly, tickets per follow,
+  and open-relay announcements every 15 minutes. Tickets expire just before
+  the relay's five-minute limit; the ladder re-resolves each sync.
 
 ## 9. Migration from v0.5.0
 
@@ -302,9 +322,9 @@ dial ladder + relay → CLI (`net up/down`, `peer status`) → docs.
    (honest "no discovery contact", local paths keep working).
 6. Direct replication plus relay-bridged replication through a consenting
    bridge, with TLS pinning verified end-to-end and the relay seeing only
-   ciphertext. Plus open-rendezvous replication between two strangers through
-   a ticket relay neither has met (loopback-proven, 3 records, pinned both
-   legs).
+   ciphertext. Open rendezvous uses ordinary `peer serve` and `peer sync`
+   through a volunteer relay; isolated outbound-only peers prove both legs
+   remain pinned. With no reachable peer or relay, sync fails explicitly.
 7. Quarantine/follow isolation unchanged: hints never become follows.
 8. Rails `PeerSync.import_store` imports a relay-fetched feed (DB-backed,
    in `test/models/`).
@@ -312,6 +332,6 @@ dial ladder + relay → CLI (`net up/down`, `peer status`) → docs.
    timeouts), cleanup verified (mappings released, sessions drained).
 
 Implementation lives in `cli/lib/ricespace/net/` (`bencode.rb`, `dht.rb`,
-`endpoint.rb`, `stun.rb`, `upnp.rb`, `natpmp.rb`, `nat.rb`, `relay.rb`),
-tested by `cli/test/net_bep44_test.rb` + `cli/test/net_discovery_test.rb`,
-both registered in `config/ci.rb`.
+`endpoint.rb`, `stun.rb`, `upnp.rb`, `natpmp.rb`, `nat.rb`, `relay.rb`,
+`rendezvous.rb`) and `cli/lib/ricespace/p2p/sync.rb`. The DHT, discovery,
+endpoint, relay and rendezvous suites are registered in `config/ci.rb`.

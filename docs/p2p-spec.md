@@ -193,14 +193,23 @@ it no longer does). GIVE batches cap at 200 records; a session moves at most
 and 20 dials per address per minute. Connect timeout 5 s, read timeout 15 s,
 and a line past 256 KB kills the session.
 
-Peers are found by the dial ladder: manual `--at` first, then stored and
-gossiped addresses, then verified DHT endpoint slots, then relay bridges
-through consenting peers (`peer serve --relay`), then open rendezvous at a
-volunteer relay neither side has met (`peer serve --relay-open`, `net wait`).
+Peers are found by the existing dial ladder: manual `--at` first, then stored
+and gossiped addresses, then verified DHT endpoint slots, then relay bridges
+through consenting peers (`peer serve --relay`), then open rendezvous. Ordinary
+`peer serve` automatically allocates per-follow tickets and discovers volunteer
+relays; `peer sync` joins those tickets through this same ladder. A relay
+operator opts in with `peer serve --relay-open`, which advertises the listener
+on a Mainline DHT topic. A reachable volunteer is required when direct paths
+fail; DHT discovery alone cannot carry sync. The low-level `net wait` command
+is not required by the normal workflow.
+
 The UDP broadcast LAN beacon (port 7677, every 10 s; same room just works,
 `--no-lan` to disable) stays. Endpoint slots are signed by the publishing
 device, verified against feed history (authorised, unrevoked, unexpired) and
-never create follows. Full design: `docs/internet-networking.md`.
+never create follows. Pair-scoped rendezvous slots are public DHT values; their
+ticket secret is a relay locator, not end-to-end authentication. TLS device
+pinning and signed feed verification remain unchanged. Full design:
+`docs/internet-networking.md`.
 
 ## Rendering
 

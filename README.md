@@ -161,17 +161,25 @@ page is files you sign; your readers are the people who follow you, syncing dire
 you or with anyone who holds a copy. No signup, no host, no chain, no tokens, no
 owner-operated servers — TLS between workstations that opted in, each pinned to keys
 they already know. Internet discovery runs on the Mainline DHT (the same peer-run
-network BitTorrent uses); a reachable friend can bridge you, and two strangers can
-meet at a volunteer rendezvous relay neither has met before.
+network BitTorrent uses). DHT discovery and the same `peer sync` command try each
+available path in turn; friends and volunteer relays can extend reach when direct
+dialing fails.
 
-    ricespace identity create              # your account: a keypair, nothing to sign up for
-    ricespace folder sign --all            # seal the folder into your signed feed
-    ricespace net up                       # join discovery: DHT, NAT probe, publish endpoint
-    ricespace peer serve                   # answer sync requests (port 7676, TLS)
-    ricespace peer add <key> ron           # follow somebody — addresses resolve themselves
-    ricespace peer sync                    # pull your follows up to date, pinned to their keys
-    ricespace peer status                  # discovery state, path and reachability per follow
-    ricespace peer bootstrap               # first contact: follow the shipped seeds
+One flow, start to finish. You make a key, you make a page, you follow a key,
+you sync. The network — DHT discovery, NAT probing, relaying — resolves itself
+underneath; `peer status` shows which path each follow took, and there is exactly
+one command per intent.
+
+```sh
+ricespace identity create              # your account: a keypair, nothing to sign up for
+ricespace folder sign --all            # seal the folder into your signed feed
+ricespace net up                       # join the network (once per machine)
+ricespace peer serve                   # answer sync requests (port 7676, TLS)
+ricespace peer address                 # print the copy-paste command to share
+ricespace peer add <master-key> ron --device <device-key>
+ricespace peer sync                    # pull your follows up to date, pinned to their keys
+ricespace peer status                  # which path each follow took, and when
+```
 
 ### First page, step by step
 
@@ -190,24 +198,29 @@ ricespace folder verify .
 ```
 
 Keep the full **master public key** from `identity show`: that is what friends
-follow, not the abbreviated `rice:` label and not your device key. The signed
+follow, not the abbreviated `rice:` label and not your device key. For first
+contact, share the command printed by `peer address`; it includes the full
+device key needed to look up that device's signed DHT slot. Its `--at` address
+is an optional direct hint, not a requirement for relay rendezvous. The signed
 folder now includes `manifest.json`. Edit `page.html` and sign again to publish a
 new version; verification fails if you change files without signing them again.
 Back up with `ricespace identity backup --out paper.json`: the file contains your
 unencrypted master secret, so print/store it offline and remove the disk copy.
 
-In a second terminal, leave the peer running:
+Then join the network and serve, in a second terminal:
 
 ```sh
+ricespace net up
 ricespace peer serve
 ```
 
-In the second terminal, run `ricespace peer address` and send its full printed
-command to a friend on the same LAN. It contains your feed key, checked address,
-and device pin. Your friend pastes that command, then runs:
+`net up` joins Mainline DHT discovery, probes your NAT and publishes a signed
+endpoint slot, so follows find your current address wherever you roam. A friend
+shares the command from `peer address`; run it with your chosen petname, then sync:
 
 ```sh
-ricespace peer sync friend
+ricespace peer add <master-key> ron --device <device-key>
+ricespace peer sync ron
 ricespace peer list
 ```
 
@@ -215,38 +228,44 @@ They must create their own identity first. Repeat `peer sync` to fetch updates;
 it also publishes their own feed over the connection they open. Stop serving with
 Ctrl-C. Files stay on disk when you stop.
 
+When neither side can dial the other directly, `peer serve` automatically
+maintains one-use rendezvous tickets for its follows, and the same `peer sync`
+command joins through a volunteer relay. Adding a follow while serving is picked
+up automatically. The relay must be reachable and running
+`peer serve --relay-open`; a reachable mutual friend can also provide the
+existing opt-in bridge (`peer serve --relay`). These are network rungs, not
+alternate sync workflows. Every path pins the same device keys; relays see only
+ciphertext.
+`peer status` names the path per follow. First contact with the shipped seeds
+uses the same sync ladder: `peer bootstrap` follows their keys and the network
+resolves them.
+
 **Reading is separate from syncing:** the CLI stores and verifies feeds; it is not
 a browser or a standalone safe HTML renderer. Run a RiceSpace Rails node and use
 `/peers` to read replicated pages with the site's HTML/CSS cleaners. `folder preview`
 also needs a running Rails renderer. `folder export . ../my-page-export` copies a
 verified signed folder; it does not sanitize arbitrary HTML into a safe site.
 
-**Connectivity:** run `net up` once — it joins the Mainline DHT, probes your NAT
-(UPnP/NAT-PMP mapping when the router allows, STUN observation otherwise) and
-publishes a signed endpoint slot so follows can find your current address. `peer sync`
-then walks a ladder per follow: your stored addresses, DHT-discovered ones, a
-bridge through a mutual friend running `peer serve --relay` — and, when neither
-side can dial anything, open rendezvous: the unreachable side runs
-`net wait <who> --at relay:port`, publishes a single-use ticket in its own signed
-slot, and your next `peer sync` JOINs it at a volunteer relay
-(`peer serve --relay-open`) neither of you has met before. Manual `--at` always
-wins as the escape hatch; LAN discovery uses UDP 7677 (`--no-lan` disables it).
-Every path pins the same device keys — a discovered address is never trusted on
-its own, and the rendezvous relay sees only ciphertext. Gossiped addresses are
-hints, not proof of identity. `peer status` shows which path each follow uses.
-
-`peer bootstrap` follows the shipped seed keys and resolves them through the same
-ladder. It is not a rendezvous service we operate: seeds name keys, the DHT and
-your friends supply addresses, and a seed nobody can reach is reported, not chased.
+**Underneath (advanced):** manual `--at` always wins as an escape hatch; LAN
+discovery uses UDP 7677 (`peer serve --no-lan` disables it); `peer serve --relay`
+bridges for friends and `--relay-open` rendezvouses strangers; `peer address`
+prints a copy-paste share command. Gossiped addresses are hints, never proof of
+identity.
 
 **Limitations, honestly:** DHT slots expose dial addresses and keys (never feed
-contents or follow lists — see `peer status --privacy`). Direct dial across
-symmetric NAT/CGNAT usually fails; the fallbacks are a friend bridge (needs one
-reachable consenting peer) or open rendezvous (needs one reachable volunteer relay
-plus the other side waiting — `net wait`). If nothing on earth is reachable at
-sync time, the CLI reports every failed rung instead of spinning. Unsolicited
-inbound traffic is your firewall's call.
+contents or follow lists — see `peer status --privacy`). The configured volunteer
+relay list ships empty; DHT discovery can find volunteers that announce themselves,
+but no relay is guaranteed online and we do not operate one. Direct dial across
+symmetric NAT/CGNAT usually fails; if no direct peer or reachable relay exists,
+sync cannot complete and reports the failed rungs. Unsolicited inbound traffic
+is your firewall's call.
 See [`docs/internet-networking.md`](docs/internet-networking.md) for the design.
+
+### Architecture at a glance
+
+<a href="docs/ricespace-architecture.html"><img src="docs/assets/ricespace-architecture.png" alt="RiceSpace architecture: hosted site, signed-feed node, DHT discovery, peers, and relay paths" width="100%"></a>
+
+Open the [full-resolution HTML/SVG diagram](docs/ricespace-architecture.html) to zoom into the data flow and trust boundaries.
 
 Your address is your public key, shown as `rice:` plus 12 characters. Names are petnames —
 `ron` is who *you* call ron, an entry in your own friends list mapping a name to a key, and
@@ -337,11 +356,11 @@ public keys through a trusted channel; a short label or matching username is not
 proof that you have found the same person.
 
 **Why does sync say no address, refuse a connection or time out?** Check `peer status`
-first — it names the path tried per follow. If discovery never ran, run `net up`. If
-the follow has no slot and no address, re-run `peer add <key> <name> --at host:7676`
-with a reachable address. The other machine must be running `peer serve`. Behind
-CGNAT with no mutual friend, use open rendezvous instead: they run
-`net wait <you> --at relay:port` and your next sync JOINs the ticket.
+first — it names the path tried per follow. If discovery never ran, run `net up`.
+The other side must be serving; `peer serve` automatically waits for follows
+through discovered volunteer relays. If direct paths fail and no reachable
+relay exists, sync cannot complete and status names the failed rungs. Manual
+`--at` is the escape hatch when you know better than discovery.
 `bootstrap` cannot invent an address for a seed nobody can reach.
 
 **What does a TLS identity failure mean?** The machine answering is not presenting
