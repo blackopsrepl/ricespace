@@ -42,6 +42,7 @@ require_relative "ricespace/net/nat"
 require_relative "ricespace/net/relay"
 require_relative "ricespace/net/relays"
 require_relative "ricespace/net/discovery"
+require_relative "ricespace/net/rendezvous"
 require_relative "ricespace/p2p/sync"
 require_relative "ricespace/command"
 

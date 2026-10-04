@@ -200,6 +200,33 @@ class NetRelayTest < Minitest::Test
     end
   end
 
+  def test_paired_relay_contains_expected_control_disconnects
+    read_attempted = Queue.new
+    incoming = Queue.new
+    active = true
+    mutex = Mutex.new
+    socket = Object.new
+    socket.define_singleton_method(:read) do |_bytes|
+      read_attempted << true
+      raise IOError, "control closed"
+    end
+    relay = Object.new
+    relay.define_singleton_method(:fetch) { |_id| mutex.synchronize { active ? {} : nil } }
+    relay.define_singleton_method(:take) { |_id, _leg, _timeout| incoming.pop }
+    relay.define_singleton_method(:drop) { |_id| mutex.synchronize { active = false } }
+    session = RiceSpace::P2p::Sync::Session.new(socket: socket, identity: nil, store_root: ".")
+
+    _stdout, stderr = capture_io do
+      thread = Thread.new { session.send(:pump_paired, "session", relay, "leg") }
+      Timeout.timeout(2) { read_attempted.pop }
+      mutex.synchronize { active = false }
+      incoming << nil
+      thread.join
+    end
+
+    assert_empty stderr
+  end
+
   def test_closed_relay_refuses_alloc
     dir_r, id_r = make_node("closed-relay")
     dir_a, id_a = make_node("alloc-a")
@@ -234,6 +261,33 @@ class NetRelayTest < Minitest::Test
   ensure
     one&.close
     two&.close
+  end
+
+  def test_open_rendezvous_wait_uses_the_full_ticket_lifetime
+    control = Object.new
+    control.define_singleton_method(:read_line) do |timeout: nil|
+      @timeout = timeout
+      { "type" => "NOPE" }
+    end
+    control.define_singleton_method(:close) { nil }
+    error = assert_raises(RiceSpace::P2p::Error) do
+      Relay.await_peer(control, "ab12cd34ef56ab78", identity: nil, peers: nil,
+        private_hex: nil, target_feed: "feed", target_pin: "pin")
+    end
+
+    assert_includes error.message, "nobody joined"
+    assert_equal Relay::TICKET_LIFETIME, control.instance_variable_get(:@timeout)
+  end
+
+  def test_sync_line_timeout_can_be_extended_for_a_rendezvous_ticket
+    reader, writer = IO.pipe
+    session = RiceSpace::P2p::Sync::Session.new(socket: reader, identity: nil, store_root: ".")
+    error = assert_raises(RiceSpace::P2p::Error) { session.read_line(timeout: 0.05) }
+
+    assert_includes error.message, "peer went quiet"
+  ensure
+    reader&.close
+    writer&.close
   end
 
   private

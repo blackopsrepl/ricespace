@@ -251,7 +251,7 @@ module RiceSpace
         # connects. Returns the Sync session.
         def self.await_peer(control, secret, identity:, peers:, private_hex:,
             target_feed:, target_pin:, store_root: Feed.root)
-          reply = control.read_line
+          reply = control.read_line(timeout: TICKET_LIFETIME)
           unless reply.is_a?(Hash) && reply["type"] == "PAIRED" && reply["session"].is_a?(String)
             control.close
             raise Error, "nobody joined the rendezvous"

@@ -97,6 +97,51 @@ class NetEndpointTest < Minitest::Test
     assert_equal "sym", verified["nat"]
   end
 
+  def test_slot_carries_a_bounded_set_of_per_follow_rendezvous_tickets
+    master = RiceSpace::P2p::Keys.generate
+    device = RiceSpace::P2p::Keys.generate
+    tickets = 4.times.map do |index|
+      { "relay" => "203.0.113.7:7676", "secret" => format("%016x", index + 1),
+        "peer" => RiceSpace::P2p::Keys.generate[:public_hex] }
+    end
+    record = Endpoint.build(node: master[:public_hex], device: device[:public_hex],
+      addrs: [ "203.0.113.7:7676" ], tickets: tickets, sign_with: device[:private_hex])
+
+    packed = Endpoint.pack(record)
+    assert_operator packed.bytesize, :<, 1000
+    assert_equal tickets, Endpoint.verify(Endpoint.unpack(packed))["tickets"]
+  end
+
+  def test_rendezvous_ticket_retains_a_valid_expiry
+    master = RiceSpace::P2p::Keys.generate
+    device = RiceSpace::P2p::Keys.generate
+    ticket = { "relay" => "203.0.113.7:7676", "secret" => "0123456789abcdef",
+      "peer" => RiceSpace::P2p::Keys.generate[:public_hex], "expires" => Time.now.to_i + 60 }
+
+    record = Endpoint.build(node: master[:public_hex], device: device[:public_hex],
+      addrs: [], ticket: ticket, sign_with: device[:private_hex])
+
+    assert_equal ticket, Endpoint.verify(Endpoint.unpack(Endpoint.pack(record)))["ticket"]
+    assert_raises(RiceSpace::P2p::Error) do
+      Endpoint.build(node: master[:public_hex], device: device[:public_hex], addrs: [],
+        ticket: ticket.merge("expires" => "soon"), sign_with: device[:private_hex])
+    end
+  end
+
+  def test_too_many_rendezvous_tickets_are_refused
+    master = RiceSpace::P2p::Keys.generate
+    device = RiceSpace::P2p::Keys.generate
+    tickets = 5.times.map do |index|
+      { "relay" => "203.0.113.7:7676", "secret" => format("%016x", index + 1),
+        "peer" => RiceSpace::P2p::Keys.generate[:public_hex] }
+    end
+
+    assert_raises(RiceSpace::P2p::Error) do
+      Endpoint.build(node: master[:public_hex], device: device[:public_hex],
+        addrs: [], tickets: tickets, sign_with: device[:private_hex])
+    end
+  end
+
   def test_format_1_slots_still_verify
     master = RiceSpace::P2p::Keys.generate
     device = RiceSpace::P2p::Keys.generate

@@ -44,9 +44,11 @@ module RiceSpace
       # idea, enforced at fetch rather than at rest.
       REPLICA_ASSET_CAP = 200 * 1024 * 1024
 
-      def self.serve(port:, identity:, peers:, private_hex:, store_root: Feed.root, lan: true, relay: nil)
+      def self.serve(port:, identity:, peers:, private_hex:, store_root: Feed.root, lan: true, relay: nil,
+          auto_rendezvous: false, peers_loader: nil)
         Server.new(port: port, identity: identity, peers: peers, private_hex: private_hex,
-          store_root: store_root, lan: lan, relay: relay)
+          store_root: store_root, lan: lan, relay: relay, auto_rendezvous: auto_rendezvous,
+          peers_loader: peers_loader)
       end
 
       # Pull every followed feed from one address. Returns {feed => new_records}.
@@ -338,9 +340,9 @@ module RiceSpace
           @socket.write("#{JSON.generate(object)}\n")
         end
 
-        def read_line
+        def read_line(timeout: READ_TIMEOUT)
           line = nil
-          Timeout.timeout(READ_TIMEOUT) do
+          Timeout.timeout(timeout) do
             # Byte-wise to the newline with a hard cap: SSLSocket#gets takes
             # no limit argument, and an uncapped line is the DoS.
             buffer = +""
@@ -489,6 +491,8 @@ module RiceSpace
               end
               break if relay.shuttle(id, leg, blob).nil?
             end
+          rescue StandardError
+            nil
           end
           loop do
             break if relay.fetch(id).nil?
@@ -559,7 +563,7 @@ module RiceSpace
           # Park: the JOIN leg pairs us (see serve_join) and wakes this with
           # a PAIRED notice; expiry or HANGUP ends the wait.
           paired = relay.await_pair(waiter[:secret], Net::Relay::TICKET_LIFETIME) do
-            message = read_line
+            message = read_line(timeout: Net::Relay::TICKET_LIFETIME)
             break :hungup if message.nil?
             break :hungup if message.is_a?(Hash) && message["type"] == "HANGUP"
           end
@@ -762,7 +766,8 @@ module RiceSpace
       end
 
       class Server
-        def initialize(port:, identity:, peers:, private_hex:, store_root: Feed.root, lan: true, relay: nil)
+        def initialize(port:, identity:, peers:, private_hex:, store_root: Feed.root, lan: true, relay: nil,
+            auto_rendezvous: false, peers_loader: nil, rendezvous_agent: nil, relay_announcer: nil)
           @port = port.to_i
           @identity = identity
           @peers = peers
@@ -770,6 +775,10 @@ module RiceSpace
           @store_root = store_root
           @lan = lan
           @relay = relay
+          @auto_rendezvous = auto_rendezvous
+          @peers_loader = peers_loader
+          @rendezvous_agent = rendezvous_agent
+          @relay_announcer = relay_announcer
           @slots = SizedQueue.new(MAX_CONNECTIONS)
           MAX_CONNECTIONS.times { @slots << true }
           @dials = Hash.new { |hash, key| hash[key] = [] }
@@ -779,6 +788,18 @@ module RiceSpace
         def run
           server = TCPServer.new("0.0.0.0", @port)
           context = Tls.server_context(@private_hex)
+          agent = @rendezvous_agent
+          announcer = @relay_announcer
+          if @auto_rendezvous
+            agent ||= Net::RendezvousAgent.new(identity: @identity, peers: @peers,
+              private_hex: @private_hex, store_root: @store_root, port: @port,
+              peers_loader: @peers_loader)
+            agent.start
+            if @relay&.open?
+              announcer ||= Net::RelayAnnouncer.new(port: @port)
+              announcer.start
+            end
+          end
           beacon = LanBeacon.new(port: @port, node: @identity.master_public, private_hex: @private_hex) if @lan
           beacon&.start
           loop do
@@ -808,12 +829,13 @@ module RiceSpace
                   next
                 end
                 begin
-                  follows = ->(pub) { pub == @identity.master_public || @peers.follow?(pub) }
+                  peers = current_peers
+                  follows = ->(pub) { pub == @identity.master_public || peers.follow?(pub) }
                   session = Session.new(socket: ssl, identity: @identity, store_root: @store_root,
                     follows: follows)
                   session.say_hello
                   session.read_hello
-                  session.serve_loop(peers: @peers, store_root: @store_root, relay: @relay)
+                  session.serve_loop(peers: peers, store_root: @store_root, relay: @relay)
                 rescue StandardError
                   nil
                 ensure
@@ -826,9 +848,18 @@ module RiceSpace
           end
         ensure
           beacon&.stop
+          agent&.stop
+          announcer&.stop
+          server&.close rescue nil
         end
 
         private
+
+        def current_peers
+          @peers_loader ? @peers_loader.call : @peers
+        rescue StandardError
+          @peers
+        end
 
         def take_slot_nonblock
           @slots.pop(true)

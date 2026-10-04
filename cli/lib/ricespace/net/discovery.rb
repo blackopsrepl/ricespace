@@ -76,7 +76,7 @@ module RiceSpace
           end
           return out if dht.nil?
 
-          slot = fetch_slot(dht, pub, store_root)
+          slot = fetch_slot(dht, pub, store_root, device_hint: peers.endpoint_for(pub)["device"])
           return out if slot.nil?
 
           slot["addrs"].each do |addr|
@@ -87,10 +87,16 @@ module RiceSpace
           # Open rendezvous: the follow waits at these relays with a ticket
           # naming us. The relay address is not pinned (stranger relay) —
           # both TLS legs pin end-to-end instead.
-          ticket = slot["ticket"]
-          if ticket.is_a?(Hash) && !own_pub.nil? &&
+          tickets = Array(slot["tickets"])
+          tickets << slot["ticket"] unless slot["ticket"].nil?
+          pair_slot = fetch_pair_ticket(dht, pub, slot, own_pub, store_root) unless own_pub.nil?
+          tickets << pair_slot["ticket"] if pair_slot.is_a?(Hash) && pair_slot["ticket"].is_a?(Hash)
+          tickets.uniq.each do |ticket|
+            next unless ticket.is_a?(Hash) && !own_pub.nil? &&
               ticket["peer"].to_s.downcase == own_pub.to_s.downcase &&
-              ticket["relay"].is_a?(String)
+              ticket["relay"].is_a?(String) &&
+              (ticket["expires"].nil? || ticket["expires"].to_i > Time.now.to_i)
+
             out << { addr: ticket["relay"], pin: slot["device"], via: :rendezvous,
               ticket: ticket, relay_feed: nil }
           end
@@ -108,8 +114,10 @@ module RiceSpace
           out
         end
 
-        def self.fetch_slot(dht, pub, store_root)
+        def self.fetch_slot(dht, pub, store_root, device_hint: nil)
           devices = live_devices(pub, store_root)
+          devices << device_hint.to_s if Keys.valid_public?(device_hint.to_s)
+          devices.uniq!
           return nil if devices.empty? && !followed_without_history?(pub, store_root)
 
           devices.each do |device|
@@ -143,6 +151,19 @@ module RiceSpace
           nil
         end
         private_class_method :fetch_slot
+
+        def self.fetch_pair_ticket(dht, pub, slot, own_pub, store_root)
+          return nil unless Keys.valid_public?(own_pub.to_s)
+
+          raw = dht.fetch(slot["device"], salt: Dht.rendezvous_salt(own_pub))
+          return nil if raw.nil?
+
+          record = Endpoint.verify(Endpoint.unpack(raw[:v]), chain: feed_chain(pub, store_root))
+          record if record["node"].to_s.downcase == pub.to_s.downcase
+        rescue Error
+          nil
+        end
+        private_class_method :fetch_pair_ticket
 
         def self.feed_chain(pub, store_root)
           feed = Feed.new(pub.to_s, root: store_root)

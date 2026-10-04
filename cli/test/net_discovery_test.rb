@@ -111,6 +111,69 @@ class NetDiscoveryTest < Minitest::Test
     assert_empty resolved2.select { |candidate| candidate[:via] == :rendezvous }
   end
 
+  def test_ticket_set_emits_only_the_rendezvous_rung_for_our_key
+    master, device, feed = feed_with_device
+    me = RiceSpace::P2p::Keys.generate
+    stranger = RiceSpace::P2p::Keys.generate
+    fake = FakeDht.new
+    tickets = [ me, stranger ].each_with_index.map do |peer, index|
+      { "relay" => "198.51.100.#{index + 9}:7676", "secret" => format("%016x", index + 1),
+        "peer" => peer[:public_hex] }
+    end
+    record = Endpoint.build(node: master[:public_hex], device: device[:public_hex],
+      addrs: [], tickets: tickets, sign_with: device[:private_hex])
+    fake.publish(device[:public_hex], device[:private_hex], Endpoint.pack(record))
+
+    resolved = Discovery.resolve(peers_with(master[:public_hex], []), master[:public_hex],
+      dht: fake, store_root: feed.dir.parent.to_s, own_pub: me[:public_hex])
+    rendezvous = resolved.select { |candidate| candidate[:via] == :rendezvous }
+
+    assert_equal 1, rendezvous.size
+    assert_equal tickets.first["secret"], rendezvous.first[:ticket]["secret"]
+  end
+
+  def test_pair_scoped_ticket_slot_is_resolved_for_its_intended_follow
+    master, device, feed = feed_with_device
+    own = RiceSpace::P2p::Keys.generate
+    fake = FakeDht.new
+    base = Endpoint.build(node: master[:public_hex], device: device[:public_hex],
+      addrs: [], sign_with: device[:private_hex])
+    ticket = Endpoint.build(node: master[:public_hex], device: device[:public_hex],
+      addrs: [], ticket: { "relay" => "203.0.113.19:7676", "secret" => "1234567890abcdef",
+        "peer" => own[:public_hex] }, sign_with: device[:private_hex])
+    fake.publish(device[:public_hex], device[:private_hex], Endpoint.pack(base))
+    fake.publish(device[:public_hex], device[:private_hex], Endpoint.pack(ticket),
+      salt: Dht.rendezvous_salt(own[:public_hex]))
+
+    resolved = Discovery.resolve(peers_with(master[:public_hex], []), master[:public_hex],
+      dht: fake, store_root: feed.dir.parent.to_s, own_pub: own[:public_hex])
+
+    rendezvous = resolved.select { |candidate| candidate[:via] == :rendezvous }
+    assert_equal 1, rendezvous.size
+    assert_equal "203.0.113.19:7676", rendezvous.first[:addr]
+    assert_equal device[:public_hex], rendezvous.first[:pin]
+  end
+
+  def test_expired_pair_scoped_ticket_is_not_a_dial_candidate
+    master, device, feed = feed_with_device
+    own = RiceSpace::P2p::Keys.generate
+    fake = FakeDht.new
+    base = Endpoint.build(node: master[:public_hex], device: device[:public_hex],
+      addrs: [], sign_with: device[:private_hex])
+    ticket = Endpoint.build(node: master[:public_hex], device: device[:public_hex],
+      addrs: [], ticket: { "relay" => "203.0.113.19:7676", "secret" => "1234567890abcdef",
+        "peer" => own[:public_hex], "expires" => Time.now.to_i - 1 },
+      sign_with: device[:private_hex])
+    fake.publish(device[:public_hex], device[:private_hex], Endpoint.pack(base))
+    fake.publish(device[:public_hex], device[:private_hex], Endpoint.pack(ticket),
+      salt: Dht.rendezvous_salt(own[:public_hex]))
+
+    resolved = Discovery.resolve(peers_with(master[:public_hex], []), master[:public_hex],
+      dht: fake, store_root: feed.dir.parent.to_s, own_pub: own[:public_hex])
+
+    assert_empty resolved.select { |candidate| candidate[:via] == :rendezvous }
+  end
+
   def test_manual_addresses_always_win_and_survive_no_dht
     master, _device, feed = feed_with_device
     peers = peers_with(master[:public_hex], [ "192.0.2.9:7676" ])
@@ -130,21 +193,21 @@ class NetDiscoveryTest < Minitest::Test
       @slots = {}
     end
 
-    def publish(device_hex, private_hex, packed, at: Time.now.to_i)
+    def publish(device_hex, private_hex, packed, at: Time.now.to_i, salt: RiceSpace::P2p::Net::Dht::SALT)
       record = RiceSpace::P2p::Net::Endpoint.unpack(packed)
       bytes = RiceSpace::P2p::Canonical.signing_bytes(author: record["node"], seq: record["at"],
         prev: record["device"], kind: "endpoint", body: record.reject { |key, _| key == "sig" })
       return 0 unless RiceSpace::P2p::Keys.verify(device_hex, record["sig"], bytes)
 
-      key = device_hex.to_s.downcase
+      key = [ device_hex.to_s.downcase, salt.to_s ]
       return 0 if @slots[key] && @slots[key][:at] >= record["at"].to_i
 
       @slots[key] = { at: record["at"].to_i, v: packed }
       1
     end
 
-    def fetch(device_hex)
-      entry = @slots[device_hex.to_s.downcase]
+    def fetch(device_hex, salt: RiceSpace::P2p::Net::Dht::SALT)
+      entry = @slots[[ device_hex.to_s.downcase, salt.to_s ]]
       entry ? { seq: entry[:at], v: entry[:v] } : nil
     end
   end

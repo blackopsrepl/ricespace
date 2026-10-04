@@ -64,9 +64,9 @@ module RiceSpace
         identity endorse <feed> <seq> <prev> <new-master>
                                    Vouch for a friend's recovery, as their friend
         identity prove '<challenge>'  Sign the studio's ownership challenge with your master
-        peer serve [--relay|--relay-open]  Answer sync requests (this machine's server)
+        peer serve [--relay|--relay-open]  Answer sync requests; auto-rendezvous
         peer address [--host HOST] [--port PORT]  Check and print a copy-paste share command
-        peer add <key> <name>      Follow somebody: peer add <hex> ron --at host:port
+        peer add <key> <name>      Follow somebody; use --device for first contact
         peer list                  Who you follow, and where they were last seen
         peer remove <name|key>     Unfollow
         peer sync [name|key]       Pull follows up to date
@@ -75,7 +75,7 @@ module RiceSpace
         peer status [name|key]     Discovery state, path and reachability per follow
         net up                     Join discovery: DHT, NAT probe, publish endpoint
         net down                   Leave discovery: release mappings, stop publishing
-        net wait <who> --at relay  Wait at an open relay for one follow (unreachable meets unreachable)
+        net wait <who> --at relay  Advanced one-off wait (not needed for peer sync)
 
       Options
         -H, --url URL              Where the space is (env RICESPACE_URL)
@@ -929,7 +929,8 @@ module RiceSpace
       Ui.key_value("wire", "TLS, pinned to known keys — strangers fail closed")
 
       P2p::Sync.serve(port: port, identity: identity, peers: peers,
-        private_hex: private_hex, lan: lan, relay: relay).run
+        private_hex: private_hex, lan: lan, relay: relay, auto_rendezvous: true,
+        peers_loader: -> { P2p::Peers.load(Config::DIRECTORY) }).run
     rescue P2p::Error => error
       raise UsageError, error.message
     end

@@ -18,8 +18,10 @@ CI.run do
   step "Tests: Net BEP44", "ruby -Icli/lib cli/test/net_bep44_test.rb"
   step "Tests: Net endpoint", "ruby -Icli/lib cli/test/net_endpoint_test.rb"
   step "Tests: Net NAT", "ruby -Icli/lib cli/test/net_nat_test.rb"
+  step "Tests: Net DHT", "ruby -Icli/lib cli/test/net_dht_test.rb"
   step "Tests: Net relay", "ruby -Icli/lib cli/test/net_relay_test.rb"
   step "Tests: Net discovery", "ruby -Icli/lib cli/test/net_discovery_test.rb"
+  step "Tests: Net rendezvous", "ruby -Icli/lib cli/test/net_rendezvous_test.rb"
   step "Tests: Net CLI", "ruby -Icli/lib cli/test/net_cli_test.rb"
 
   # The pictures the README shows. They are generated, so the script that generates them is

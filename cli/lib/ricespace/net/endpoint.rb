@@ -16,6 +16,7 @@ module RiceSpace
         MAX_ADDRS = 4
         MAX_RELAYS = 2
         MAX_RV = 2
+        MAX_TICKETS = 4
         # The publisher's own NAT verdict. Used by the ladder to decide
         # whether simultaneous-open is worth attempting — never trusted as
         # proof of anything.
@@ -25,32 +26,29 @@ module RiceSpace
         TICKET_BYTES = 8
 
         def self.build(node:, device:, addrs:, relay: [], rv: [], nat: "unknown",
-            ticket: nil, at: Time.now.to_i, sign_with:)
+            ticket: nil, tickets: [], at: Time.now.to_i, sign_with:)
           clean_addrs = Array(addrs).map(&:to_s).uniq
           clean_relays = Array(relay).map(&:to_s).uniq
           clean_rv = Array(rv).map(&:to_s).uniq
+          clean_tickets = Array(tickets).map { |entry| check_ticket!(entry) }
           if clean_addrs.size > MAX_ADDRS || clean_relays.size > MAX_RELAYS || clean_rv.size > MAX_RV
             raise Error, "too many endpoint addresses"
           end
+          raise Error, "too many rendezvous tickets" if clean_tickets.size > MAX_TICKETS
           clean_addrs.each { |addr| check_addr!(addr) }
           clean_relays.each { |addr| check_addr!(addr) }
           clean_rv.each { |addr| check_addr!(addr) }
           label = nat.to_s
           raise Error, "unknown NAT label #{label.inspect}" unless NAT_LABELS.include?(label)
-          unless ticket.nil?
-            raise Error, "a ticket names a relay, a secret and a peer" unless
-              ticket.is_a?(Hash) && ticket["relay"].is_a?(String) &&
-              ticket["secret"].to_s.match?(/\A[0-9a-f]{16}\z/) &&
-              Keys.valid_public?(ticket["peer"].to_s)
-          end
+          clean_ticket = check_ticket!(ticket) unless ticket.nil?
 
           body = {
             "ep" => FORMAT, "node" => node.to_s.downcase, "device" => device.to_s.downcase,
             "addrs" => clean_addrs, "at" => at.to_i, "exp" => at.to_i + TTL, "relay" => clean_relays,
             "nat" => label, "rv" => clean_rv
           }
-          body["ticket"] = { "relay" => ticket["relay"], "secret" => ticket["secret"].downcase,
-            "peer" => ticket["peer"].downcase } unless ticket.nil?
+          body["ticket"] = clean_ticket unless clean_ticket.nil?
+          body["tickets"] = clean_tickets unless clean_tickets.empty?
           bytes = Canonical.signing_bytes(author: body["node"], seq: body["at"],
             prev: body["device"], kind: "endpoint", body: body.reject { |key, _| key == "sig" })
           body.merge("sig" => Keys.sign(sign_with, bytes))
@@ -107,6 +105,8 @@ module RiceSpace
           label = "unknown" if label.empty? && record["ep"] == 1
           raise Error, "unknown NAT label #{label.inspect}" unless NAT_LABELS.include?(label)
           ticket = check_ticket!(record["ticket"]) unless record["ticket"].nil?
+          tickets = Array(record["tickets"]).map { |entry| check_ticket!(entry) }
+          raise Error, "too many rendezvous tickets" if tickets.size > MAX_TICKETS
 
           # Authorisation, not just authentication: the slot's device must
           # belong to the feed it claims, at publication time. First contact
@@ -116,6 +116,7 @@ module RiceSpace
 
           out = record.merge("addrs" => addrs, "relay" => relays, "nat" => label, "rv" => rvs)
           out["ticket"] = ticket unless ticket.nil?
+          out["tickets"] = tickets unless tickets.empty?
           out
         end
 
@@ -128,8 +129,16 @@ module RiceSpace
             raise Error, "bad rendezvous ticket"
           end
 
-          { "relay" => ticket["relay"].to_s, "secret" => ticket["secret"].downcase,
+          normalized = { "relay" => ticket["relay"].to_s, "secret" => ticket["secret"].downcase,
             "peer" => ticket["peer"].downcase }
+          unless ticket["expires"].nil?
+            begin
+              normalized["expires"] = Integer(ticket["expires"])
+            rescue ArgumentError, TypeError
+              raise Error, "bad rendezvous ticket expiry"
+            end
+          end
+          normalized
         end
         private_class_method :check_ticket!
 

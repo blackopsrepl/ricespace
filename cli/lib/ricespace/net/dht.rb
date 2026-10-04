@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "digest/sha1"
+require "ipaddr"
 require "socket"
 require "timeout"
 
@@ -21,6 +22,7 @@ module RiceSpace
         MAX_INFLIGHT = 64
         TABLE_CAP = 128
         PUT_REPLICAS = 8
+        MAX_LOOKUP_ROUNDS = 3
         SALT = "ricespace-ep-v1"
 
         def initialize(socket: nil, node_id: nil)
@@ -38,6 +40,14 @@ module RiceSpace
         def self.target_for(device_hex, salt: nil)
           raw = [ device_hex.to_s.downcase ].pack("H*")
           salt.nil? || salt.empty? ? Digest::SHA1.hexdigest(raw) : Digest::SHA1.hexdigest(raw + salt.to_s.b)
+        end
+
+        # Pair-scoped salt keeps each follow's one-use ticket in its own BEP44
+        # slot. A peer can derive it from the key it already follows.
+        def self.rendezvous_salt(peer_hex)
+          raise Error, "not an account key" unless Keys.valid_public?(peer_hex.to_s)
+
+          "ricespace-rv-v1:#{Digest::SHA1.hexdigest([ peer_hex.to_s.downcase ].pack("H*"))}"
         end
 
         # The exact bytes a BEP44 mutable signature covers: the bencoded
@@ -104,27 +114,76 @@ module RiceSpace
         # the first PUT_REPLICAS that grant one. Returns how many accepted.
         def publish(device_hex, private_hex, v, salt: SALT)
           target = self.class.target_for(device_hex, salt: salt)
-          seq = Time.now.to_i
-          sig_raw = Keys.sign(private_hex, self.class.signed_bytes(seq: seq, v: v, salt: salt))
-          k_raw = [ device_hex.to_s.downcase ].pack("H*")
-          accepted = 0
-          closest_to(target, PUT_REPLICAS).each do |host, port|
+          writable = closest_to(target, PUT_REPLICAS).filter_map do |host, port|
             begin
               fetched = query({ "t" => txid, "y" => "q", "q" => "get",
                 "a" => { "id" => @node_id, "target" => [ target ].pack("H*") } }, host, port)
               token = fetched.dig("r", "token")
-              next if token.nil?
+              next unless token.is_a?(String)
 
-              query({ "t" => txid, "y" => "q", "q" => "put",
-                "a" => { "id" => @node_id, "token" => token, "k" => k_raw,
-                  "salt" => salt.to_s.b, "seq" => seq,
-                  "sig" => [ sig_raw ].pack("H*"), "v" => v.b } }, host, port)
-              accepted += 1
+              { host: host, port: port, token: token,
+                seq: fetched.dig("r", "seq").to_i }
             rescue Error
-              next
+              nil
             end
           end
-          accepted
+          return 0 if writable.empty?
+
+          seq = [ Time.now.to_i, writable.map { |node| node[:seq] }.max.to_i + 1 ].max
+          sig_raw = Keys.sign(private_hex, self.class.signed_bytes(seq: seq, v: v, salt: salt))
+          k_raw = [ device_hex.to_s.downcase ].pack("H*")
+          writable.count do |node|
+            begin
+              query({ "t" => txid, "y" => "q", "q" => "put",
+                "a" => { "id" => @node_id, "token" => node[:token], "k" => k_raw,
+                  "salt" => salt.to_s.b, "seq" => seq,
+                  "sig" => [ sig_raw ].pack("H*"), "v" => v.b } }, node[:host], node[:port])
+              true
+            rescue Error
+              false
+            end
+          end
+        end
+
+        # Discover volunteer services through a well-known Mainline DHT swarm.
+        # Announcements are untrusted candidates; callers must still exercise
+        # the relay protocol and preserve end-to-end TLS pinning.
+        RELAY_TOPIC = Digest::SHA1.digest("ricespace-open-rendezvous-v1").freeze
+
+        def find_peers(topic: RELAY_TOPIC)
+          target = topic_bytes(topic)
+          replies = get_peers_lookup(target)
+          replies.flat_map do |_host, _port, reply|
+            Array(reply.dig("r", "values")).filter_map { |value| compact_peer(value) }
+          end.uniq
+        end
+
+        # Volunteer relays announce their listening TCP port using Mainline's
+        # short-lived token. Reannounce periodically while serving.
+        def announce_peer(port:, topic: RELAY_TOPIC)
+          target = topic_bytes(topic)
+          tcp_port = Integer(port)
+          raise Error, "bad DHT announcement port" unless (1..65535).cover?(tcp_port)
+
+          replies = get_peers_lookup(target)
+          tokens = replies.to_h do |host, node_port, reply|
+            [ [ host, node_port ], reply.dig("r", "token") ]
+          end
+          closest_to(target.unpack1("H*"), PUT_REPLICAS).count do |host, node_port|
+            token = tokens[[ host, node_port ]]
+            next false unless token.is_a?(String)
+
+            begin
+              query({ "t" => txid, "y" => "q", "q" => "announce_peer",
+                "a" => { "id" => @node_id, "info_hash" => target,
+                  "port" => tcp_port, "token" => token } }, host, node_port)
+              true
+            rescue Error
+              false
+            end
+          end
+        rescue ArgumentError, TypeError
+          raise Error, "bad DHT announcement port"
         end
 
         def close
@@ -134,6 +193,50 @@ module RiceSpace
         end
 
         private
+
+        def topic_bytes(topic)
+          bytes = topic.to_s.b
+          raise Error, "DHT info hash must be 20 bytes" unless bytes.bytesize == 20
+
+          bytes
+        end
+
+        def get_peers_lookup(target)
+          target_hex = target.unpack1("H*")
+          queried = {}
+          replies = []
+          MAX_LOOKUP_ROUNDS.times do
+            fresh = closest_to(target_hex, PUT_REPLICAS).reject do |host, port|
+              queried[[ host, port ]]
+            end
+            break if fresh.empty?
+
+            fresh.each do |host, port|
+              queried[[ host, port ]] = true
+              begin
+                reply = query({ "t" => txid, "y" => "q", "q" => "get_peers",
+                  "a" => { "id" => @node_id, "info_hash" => target } }, host, port)
+                replies << [ host, port, reply ]
+              rescue Error
+                next
+              end
+            end
+          end
+          replies
+        end
+
+        def compact_peer(value)
+          bytes = value.to_s.b
+          return nil unless bytes.bytesize == 6
+
+          host = IPAddr.new_ntoh(bytes.byteslice(0, 4)).to_s
+          port = bytes.byteslice(4, 2).unpack1("n")
+          return nil if port.zero?
+
+          "#{host}:#{port}"
+        rescue IPAddr::InvalidAddressError
+          nil
+        end
 
         def socket
           @socket ||= UDPSocket.new
