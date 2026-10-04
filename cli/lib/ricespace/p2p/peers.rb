@@ -11,6 +11,7 @@ module RiceSpace
     #   { "follows": { "<pubhex>": { "petname": "ron", "addrs": ["host:port"] } } }
     class Peers
       FILENAME = "peers.json"
+      HINTS = "hints.json"
 
       def initialize(path:, follows:)
         @path = path
@@ -18,6 +19,40 @@ module RiceSpace
       end
 
       attr_reader :follows
+
+      # Gossiped addresses for keys we do NOT follow: discovery, not
+      # introduction. Shown by `peer list` as hints; following still takes an
+      # explicit `peer add` with a human-chosen petname.
+      def hints(config_dir = nil)
+        file = hints_path(config_dir)
+        return {} unless file.file?
+
+        begin
+          data = JSON.parse(file.read)
+          data.is_a?(Hash) ? data : {}
+        rescue JSON::ParserError
+          {}
+        end
+      end
+
+      def note_hint(pub, addrs)
+        return if follow?(pub.to_s)
+
+        file = hints_path
+        known = hints
+        merged = ((Array(known[pub.to_s]) + Array(addrs)).map(&:to_s).uniq)
+        known[pub.to_s] = merged
+        file.dirname.mkpath
+        temp = Pathname.new("#{file}.new")
+        temp.write(JSON.pretty_generate(known) + "\n")
+        temp.chmod(0o600)
+        temp.rename(file)
+      end
+
+      def hints_path(config_dir = nil)
+        base = config_dir ? Pathname.new(config_dir.to_s) : @path.dirname
+        base.join(HINTS)
+      end
 
       def self.path(config_dir = Config::DIRECTORY)
         Pathname.new(config_dir.to_s).join(FILENAME)

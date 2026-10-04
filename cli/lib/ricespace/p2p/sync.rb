@@ -6,11 +6,13 @@ require "openssl"
 
 module RiceSpace
   module P2p
-    # The wire: three messages over plain TCP, newline-delimited JSON.
+    # The wire: TLS, newline-delimited JSON.
     #
-    #   HELLO  { "node": <master-pub>, "have": { "<feed>": <seq>, ... }, "port": N }
-    #   WANT   { "feed": <pub>, "from": <seq> }          # records after `from`
-    #   GIVE   { "feed": <pub>, "records": [...] }       # verified before storing
+    #   HELLO  { "node": <master-pub> }                  # minimal; no inventory
+    #   HAVE   { "feed": <pub> } → HAVE { "feed", "seq" } # per-feed seq query
+    #   WANT   { "feed", "from", "limit" } → GIVE { "feed", "records" }
+    #   PUBLISH { "feed", "records" } → ACCEPTED { n }    # push own records up
+    #   ADDR   { "addrs": { "<pub>": ["host:port"] } }   # gossip observed addrs
     #   NEED   { "sha256": [...] }                       # asset hashes wanted
     #   HAVE   { "assets": { "<sha256>": <bytesize|null> } }
     #   FETCH  { "sha256": "<hash>" }                   # one asset's bytes follow
@@ -51,21 +53,33 @@ module RiceSpace
       # `expected_key` pins the remote: the cert it presents must carry this
       # device key, or the session dies before HELLO. Nil means "any key I
       # already know" — the fail-closed default for LAN-discovered peers.
-      def self.pull(host, port, identity:, peers:, private_hex:, expected_key: nil, store_root: Feed.root)
+      # `publish` pushes our own new records first (NATed nodes contribute
+      # through the connection they opened), then pulls. `gossip` exchanges
+      # observed addresses so friend-of-friend works without a directory.
+      def self.pull(host, port, identity:, peers:, private_hex:, expected_key: nil,
+          store_root: Feed.root, publish: true, gossip: true)
         session = Session.connect(host, port, identity: identity, peers: peers,
           private_hex: private_hex, expected_key: expected_key, store_root: store_root)
         begin
-          session.pull(peers: peers, store_root: store_root)
+          pushed = publish ? session.push_own(store_root: store_root) : 0
+          learned = gossip ? session.exchange_addrs(peers: peers) : {}
+          gained = session.pull(peers: peers, store_root: store_root)
+          gained["!pushed"] = pushed if pushed.positive?
+          gained["!addrs"] = learned.size if learned.any?
+          gained
         ensure
           session.close
         end
       end
 
       class Session
-        def initialize(socket:, identity:, store_root:)
+        def initialize(socket:, identity:, store_root:, follows: nil)
           @socket = socket
           @identity = identity
           @store_root = store_root
+          # Callable(pub) → bool: does the serving side hold this feed as a
+          # follow or its own? Pushes for anything else are dropped.
+          @peers_follow = follows
           @records_moved = 0
           @bytes_moved = 0
         end
@@ -181,6 +195,59 @@ module RiceSpace
           gained
         end
 
+        # Push our own feed's new records to the remote (it stores what it
+        # follows, drops the rest — same gating as a pull, mirrored). This is
+        # how a NATed node publishes: it can never be dialed, so it pushes
+        # through the connection it opened. Returns records accepted.
+        def push_own(store_root: Feed.root)
+          feed = Feed.new(@identity.master_public, root: store_root)
+          records = feed.records
+          return 0 if records.empty?
+
+          send_line({ "type" => "PUBLISH", "feed" => @identity.master_public,
+            "from" => 0, "records" => records })
+          message = read_line
+          return 0 unless message.is_a?(Hash) && message["type"] == "ACCEPTED"
+
+          message["n"].to_i
+        end
+
+        # Swap observed addresses: ours for follows, theirs for theirs. Only
+        # keys both sides... no — any key either side names. Addresses are not
+        # secrets (anyone dialable is public by definition); keys still verify
+        # everything. Returns {pub => [addrs]} newly learned.
+        def exchange_addrs(peers:, store_root: Feed.root)
+          mine = {}
+          peers.follows.each do |pub, entry|
+            addrs = entry.is_a?(Hash) ? Array(entry["addrs"]) : []
+            mine[pub] = addrs unless addrs.empty?
+          end
+          send_line({ "type" => "ADDR", "addrs" => mine })
+          message = read_line
+          return {} unless message.is_a?(Hash) && message["type"] == "ADDR"
+
+          learned = {}
+          their = message["addrs"].is_a?(Hash) ? message["addrs"] : {}
+          their.each do |pub, addrs|
+            next unless Keys.valid_public?(pub.to_s)
+
+            fresh = Array(addrs).map(&:to_s).uniq - peers.addrs_for(pub)
+            next if fresh.empty?
+
+            merged = (peers.addrs_for(pub) + fresh).uniq
+            if peers.follow?(pub)
+              peers.set_addrs(pub, merged)
+              learned[pub] = fresh
+            else
+              # Unknown keys ride along but are not followed — discovery, not
+              # introduction. Stored as an unfollowed hint for `peer list`.
+              peers.note_hint(pub, merged)
+              learned[pub] = fresh
+            end
+          end
+          learned
+        end
+
         # Answer one peer for the life of the connection.
         def serve_loop(peers:, store_root: Feed.root)
           loop do
@@ -194,6 +261,10 @@ module RiceSpace
               serve_have(message, store_root)
             when "WANT"
               serve_want(message, store_root)
+            when "PUBLISH"
+              serve_publish(message, store_root)
+            when "ADDR"
+              serve_addr(message, peers, store_root)
             when "NEED"
               serve_need(message, store_root)
             when "FETCH"
@@ -235,6 +306,87 @@ module RiceSpace
           # could plausibly want — which is everything we hold. Gating happens
           # on the *storing* side (we keep only what we follow).
           send_line({ "type" => "GIVE", "feed" => pub, "records" => records })
+        end
+
+        # A pushed feed: merge what verifies, count what stuck. Followed feeds
+        # (and our own) store freely; unknown feeds land in quarantine — capped
+        # bytes, verified the same, never rendered or ranked unless followed.
+        # This is how a new node publishes at a stranger: the records wait on
+        # disk until somebody follows the key. The spam bound is the
+        # quarantine cap, not refusal.
+        QUARANTINE_CAP = 50 * 1024 * 1024
+
+        def serve_publish(message, store_root)
+          pub = message["feed"].to_s
+          records = Array(message["records"]).first(MAX_GIVE_BATCH * 5)
+          check_budget!(records.size, 0)
+          known = @peers_follow ? @peers_follow.call(pub) : true
+          unless known
+            return quarantined(store_root) do
+              feed = Feed.new(pub, root: store_root)
+              added = feed.merge(records)
+              send_line({ "type" => "ACCEPTED", "n" => added })
+            end
+          end
+          feed = Feed.new(pub, root: store_root)
+          added = feed.merge(records)
+          send_line({ "type" => "ACCEPTED", "n" => added })
+        end
+
+        # Run the block only if unknown-feed storage stays under cap; evict
+        # oldest unknown feeds first. Followed feeds and our own never count.
+        def quarantined(store_root)
+          root = Pathname.new(store_root.to_s)
+          yield
+          return unless root.directory?
+
+          over = quarantine_bytes(store_root) - QUARANTINE_CAP
+          return if over <= 0
+
+          unknown = root.children.select(&:directory?).sort_by { |dir| dir.mtime }
+          unknown.each do |dir|
+            break if over <= 0
+            next if @peers_follow&.call(dir.basename.to_s)
+
+            freed = dir.children.select(&:file?).sum(&:size)
+            require "fileutils"
+            FileUtils.rm_rf(dir)
+            over -= freed
+          end
+        end
+
+        def quarantine_bytes(store_root)
+          root = Pathname.new(store_root.to_s)
+          return 0 unless root.directory?
+
+          root.children.select(&:directory?).sum do |dir|
+            next 0 if @peers_follow&.call(dir.basename.to_s)
+
+            dir.children.select(&:file?).sum(&:size)
+          end
+        end
+
+        # Their addresses for our hint file; ours back. Mirrors exchange_addrs.
+        def serve_addr(message, peers, _store_root)
+          mine = {}
+          peers.follows.each do |pub, entry|
+            addrs = entry.is_a?(Hash) ? Array(entry["addrs"]) : []
+            mine[pub] = addrs unless addrs.empty?
+          end
+          send_line({ "type" => "ADDR", "addrs" => mine })
+          their = message["addrs"].is_a?(Hash) ? message["addrs"] : {}
+          their.each do |pub, addrs|
+            next unless Keys.valid_public?(pub.to_s)
+
+            fresh = Array(addrs).map(&:to_s).uniq - peers.addrs_for(pub)
+            next if fresh.empty?
+
+            if peers.follow?(pub)
+              peers.set_addrs(pub, (peers.addrs_for(pub) + fresh).uniq)
+            else
+              peers.note_hint(pub, fresh)
+            end
+          end
         end
 
         def serve_need(message, store_root)
@@ -334,7 +486,7 @@ module RiceSpace
         def run
           server = TCPServer.new("0.0.0.0", @port)
           context = Tls.server_context(@private_hex)
-          beacon = LanBeacon.new(port: @port, node: @identity.master_public) if @lan
+          beacon = LanBeacon.new(port: @port, node: @identity.master_public, private_hex: @private_hex) if @lan
           beacon&.start
           loop do
             socket = server.accept
@@ -363,7 +515,9 @@ module RiceSpace
                   next
                 end
                 begin
-                  session = Session.new(socket: ssl, identity: @identity, store_root: @store_root)
+                  follows = ->(pub) { pub == @identity.master_public || @peers.follow?(pub) }
+                  session = Session.new(socket: ssl, identity: @identity, store_root: @store_root,
+                    follows: follows)
                   session.say_hello
                   session.read_hello
                   session.serve_loop(peers: @peers, store_root: @store_root)
@@ -404,15 +558,20 @@ module RiceSpace
         end
       end
 
-      # LAN presence: a UDP broadcast saying "a node is here" every 10s, and a
-      # listener collecting others'. Same-room sync with no configuration.
+      # LAN presence, signed: a UDP broadcast saying "a node is here" every
+      # 10s, and a listener collecting others'. Same-room sync with no
+      # configuration. Each announcement carries the announcer's device key,
+      # a timestamp, and a signature over both — a spoofed beacon fails the
+      # check and never enters the map. Replay window is 60 s.
       class LanBeacon
         BROADCAST_PORT = 7677
         INTERVAL = 10
+        REPLAY_WINDOW = 60
 
-        def initialize(port:, node:)
+        def initialize(port:, node:, private_hex: nil)
           @port = port
           @node = node
+          @private_hex = private_hex
           @seen = {}
           @running = false
         end
@@ -426,7 +585,7 @@ module RiceSpace
             socket.setsockopt(Socket::SOL_SOCKET, Socket::SO_BROADCAST, true)
             while @running
               begin
-                socket.send(JSON.generate({ "node" => @node, "port" => @port }),
+                socket.send(JSON.generate(announcement),
                   0, "255.255.255.255", BROADCAST_PORT)
               rescue StandardError
                 nil
@@ -441,12 +600,11 @@ module RiceSpace
               socket.bind("0.0.0.0", BROADCAST_PORT)
               while @running
                 begin
-                  data, addr = socket.recvfrom(1024)
-                  message = JSON.parse(data) rescue nil
-                  next unless message.is_a?(Hash) && message["node"] != @node
+                  data, addr = socket.recvfrom(2048)
+                  node, host, port = self.class.verify_announcement(data)
+                  next if node.nil? || node == @node
 
-                  @seen[message["node"].to_s] = { "host" => addr[3], "port" => message["port"].to_i,
-                                                  "at" => Time.now.to_i }
+                  @seen[node] = { "host" => addr[3] || host, "port" => port, "at" => Time.now.to_i }
                 rescue StandardError
                   nil
                 end
@@ -464,6 +622,45 @@ module RiceSpace
           @running = false
           @announce&.kill
           @listen&.kill
+        end
+
+        private
+
+        def announcement
+          at = Time.now.to_i
+          payload = { "node" => @node, "port" => @port, "at" => at }
+          if @private_hex
+            bytes = Canonical.signing_bytes(author: @node, seq: at, prev: @port.to_s,
+              kind: "beacon", body: { "port" => @port })
+            payload["device"] = Keys.public_from_private(@private_hex)
+            payload["sig"] = Keys.sign(@private_hex, bytes)
+          end
+          payload
+        end
+
+        # Returns [node, host, port] or [nil, nil, nil]. Unsigned legacy
+        # announcements are ignored, not grandfathered — silence beats a
+        # spoofable map.
+        def self.verify_announcement(data)
+          message = JSON.parse(data)
+          return [ nil, nil, nil ] unless message.is_a?(Hash)
+
+          node = message["node"].to_s
+          port = message["port"].to_i
+          at = message["at"].to_i
+          device = message["device"].to_s
+          sig = message["sig"].to_s
+          return [ nil, nil, nil ] unless Keys.valid_public?(node) && port.positive? && port < 65_536
+          return [ nil, nil, nil ] unless Keys.valid_public?(device)
+          return [ nil, nil, nil ] if (Time.now.to_i - at).abs > REPLAY_WINDOW
+
+          bytes = Canonical.signing_bytes(author: node, seq: at, prev: port.to_s,
+            kind: "beacon", body: { "port" => port })
+          return [ nil, nil, nil ] unless Keys.verify(device, sig, bytes)
+
+          [ node, nil, port ]
+        rescue JSON::ParserError, StandardError
+          [ nil, nil, nil ]
         end
       end
     end
