@@ -15,6 +15,12 @@ CI.run do
   step "Tests: CLI", "ruby -Icli/lib cli/test/ricespace_test.rb"
   step "Tests: P2P", "ruby -Icli/lib cli/test/p2p_test.rb"
   step "Tests: Peer address", "ruby -Icli/lib cli/test/peer_address_test.rb"
+  step "Tests: Net BEP44", "ruby -Icli/lib cli/test/net_bep44_test.rb"
+  step "Tests: Net endpoint", "ruby -Icli/lib cli/test/net_endpoint_test.rb"
+  step "Tests: Net NAT", "ruby -Icli/lib cli/test/net_nat_test.rb"
+  step "Tests: Net relay", "ruby -Icli/lib cli/test/net_relay_test.rb"
+  step "Tests: Net discovery", "ruby -Icli/lib cli/test/net_discovery_test.rb"
+  step "Tests: Net CLI", "ruby -Icli/lib cli/test/net_cli_test.rb"
 
   # The pictures the README shows. They are generated, so the script that generates them is
   # part of the product, and the framework wrappers beside it are not: a syntax error in

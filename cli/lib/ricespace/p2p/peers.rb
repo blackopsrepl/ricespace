@@ -86,6 +86,28 @@ module RiceSpace
         entry.is_a?(Hash) ? Array(entry["addrs"]).map(&:to_s) : []
       end
 
+      # Endpoint-slot state per follow: verified DHT addrs/relays plus their
+      # age. Old files load unchanged — every field is optional.
+      def endpoint_for(public_hex)
+        entry = @follows[public_hex.to_s]
+        entry.is_a?(Hash) ? entry : {}
+      end
+
+      def relays_for(public_hex)
+        Array(endpoint_for(public_hex)["relay"]).map(&:to_s)
+      end
+
+      def note_endpoint(public_hex, addrs:, relay:, at:, exp:)
+        entry = @follows[public_hex.to_s]
+        return unless entry.is_a?(Hash)
+
+        entry["addrs"] = ((Array(entry["addrs"]) + Array(addrs)).map(&:to_s).uniq)
+        entry["relay"] = Array(relay).map(&:to_s).uniq.first(2)
+        entry["ep_at"] = at.to_i
+        entry["ep_exp"] = exp.to_i
+        save
+      end
+
       def add(public_hex, petname:, addrs: [], device: nil)
         raise Error, "not an account" unless Keys.valid_public?(public_hex.to_s)
         raise Error, "not a device public key" if device && !Keys.valid_public?(device.to_s)

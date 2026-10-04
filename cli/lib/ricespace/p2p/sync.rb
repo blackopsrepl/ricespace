@@ -44,9 +44,9 @@ module RiceSpace
       # idea, enforced at fetch rather than at rest.
       REPLICA_ASSET_CAP = 200 * 1024 * 1024
 
-      def self.serve(port:, identity:, peers:, private_hex:, store_root: Feed.root, lan: true)
+      def self.serve(port:, identity:, peers:, private_hex:, store_root: Feed.root, lan: true, relay: nil)
         Server.new(port: port, identity: identity, peers: peers, private_hex: private_hex,
-          store_root: store_root, lan: lan)
+          store_root: store_root, lan: lan, relay: relay)
       end
 
       # Pull every followed feed from one address. Returns {feed => new_records}.
@@ -96,20 +96,66 @@ module RiceSpace
           end
           tcp.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1)
 
-          ssl = OpenSSL::SSL::SSLSocket.new(tcp, Tls.client_context(private_hex))
+          connect_io(tcp, addr, identity: identity, peers: peers, private_hex: private_hex,
+            expected_key: expected_key, store_root: store_root)
+        end
+
+        # TLS over any byte stream: a TCP socket or a relay-bridged one. The
+        # pin check is identical — the bridge never weakens authentication.
+        def self.connect_io(io, addr, identity:, peers:, private_hex:, expected_key: nil, store_root: Feed.root)
+          addr = addr.to_s
+          ssl = OpenSSL::SSL::SSLSocket.new(io, Tls.client_context(private_hex))
           ssl.hostname = addr
           begin
             Timeout.timeout(CONNECT_TIMEOUT) { ssl.connect }
           rescue StandardError => error
-            tcp.close rescue nil
-            raise Error, "TLS to #{addr}:#{port} failed (#{error.message})"
+            io.close rescue nil
+            raise Error, "TLS to #{addr} failed (#{error.message})"
           end
 
           presented = Tls.peer_key(ssl)
-          if expected_key
+          if expected_key == :none
+            # Explicitly unpinned control leg (stranger rendezvous relay):
+            # the relay is never trusted, authentication lives end-to-end.
+            # The caller opts in by passing :none — never a default.
+          elsif expected_key
             unless presented.downcase == expected_key.to_s.downcase
               ssl.close rescue nil
               raise Error, "the peer is not who was dialed (pinned #{expected_key[0, 12]}, showed #{presented[0, 12]})"
+            end
+          elsif !Tls.known_key?(presented, identity: identity, peers: peers, store_root: store_root)
+            ssl.close rescue nil
+            raise Error, "the peer #{presented[0, 12]} is a stranger — follow it first"
+          end
+
+          session = new(socket: ssl, identity: identity, store_root: store_root)
+          session.say_hello
+          session.read_hello
+          session
+        end
+
+        # TLS server role over a bridged stream: the rendezvous waiter
+        # accepts while the joiner connects. Pin check identical.
+        def self.accept_io(io, addr, identity:, peers:, private_hex:, expected_key: nil, store_root: Feed.root)
+          addr = addr.to_s
+          ssl = OpenSSL::SSL::SSLSocket.new(io, Tls.server_context(private_hex))
+          begin
+            Timeout.timeout(CONNECT_TIMEOUT) { ssl.accept }
+          rescue StandardError => error
+            io.close rescue nil
+            raise Error, "TLS accept for #{addr} failed (#{error.message})"
+          end
+
+          begin
+            presented = Tls.peer_key(ssl)
+          rescue Error
+            ssl.close rescue nil
+            raise Error, "the peer showed no certificate"
+          end
+          if expected_key
+            unless presented.downcase == expected_key.to_s.downcase
+              ssl.close rescue nil
+              raise Error, "the peer is not who was waited for (pinned #{expected_key[0, 12]}, showed #{presented[0, 12]})"
             end
           elsif !Tls.known_key?(presented, identity: identity, peers: peers, store_root: store_root)
             ssl.close rescue nil
@@ -249,7 +295,7 @@ module RiceSpace
         end
 
         # Answer one peer for the life of the connection.
-        def serve_loop(peers:, store_root: Feed.root)
+        def serve_loop(peers:, store_root: Feed.root, relay: nil)
           loop do
             check_budget!(0, 0)
             message = read_line
@@ -269,6 +315,17 @@ module RiceSpace
               serve_need(message, store_root)
             when "FETCH"
               serve_fetch(message, store_root)
+            when "BRIDGE"
+              serve_bridge(message, peers, relay)
+              break
+            when "ALLOC"
+              serve_alloc(relay)
+              break
+            when "JOIN"
+              serve_join(message, relay)
+              break
+            when "BYTES", "HANGUP"
+              serve_relayed(message, relay)
             when "BYE"
               break
             end
@@ -277,7 +334,270 @@ module RiceSpace
           nil
         end
 
+        def send_line(object)
+          @socket.write("#{JSON.generate(object)}\n")
+        end
+
+        def read_line
+          line = nil
+          Timeout.timeout(READ_TIMEOUT) do
+            # Byte-wise to the newline with a hard cap: SSLSocket#gets takes
+            # no limit argument, and an uncapped line is the DoS.
+            buffer = +""
+            loop do
+              char = @socket.read(1)
+              break if char.nil?
+              buffer << char
+              raise Error, "the peer sent a line too long" if buffer.bytesize > MAX_LINE
+              break if char == "\n"
+            end
+            line = buffer.empty? ? nil : buffer
+          end
+          return nil if line.nil?
+
+          JSON.parse(line)
+        rescue JSON::ParserError
+          raise Error, "the peer spoke nonsense"
+        rescue Timeout::Error
+          raise Error, "the peer went quiet"
+        end
+
         private
+
+        # A caller asks this node to bridge bytes to another device.
+        # Consent-only: without a relay registry (peer serve --relay) this
+        # is NOROUTE. After BRIDGED the caller speaks raw TLS bytes framed in
+        # BYTES messages; this side pumps them into a plain TCP connection to
+        # the target's address. The target's own TLS handshake authenticates
+        # the caller end-to-end — the relay never holds session keys.
+        def serve_bridge(message, peers, relay)
+          unless relay
+            send_line({ "type" => "NOROUTE" })
+            return
+          end
+          target = message["to"].to_s
+          unless Keys.valid_public?(target)
+            send_line({ "type" => "NOROUTE" })
+            return
+          end
+          addr = relay_addr_for(target, peers)
+          if addr.nil?
+            send_line({ "type" => "NOROUTE" })
+            return
+          end
+          host, port = addr.split(":", 2)
+          tcp = nil
+          begin
+            Timeout.timeout(CONNECT_TIMEOUT) { tcp = TCPSocket.new(host.to_s, port.to_i) }
+          rescue StandardError
+            send_line({ "type" => "NOROUTE" })
+            return
+          end
+          id = relay.create(@socket, tcp)
+          send_line({ "type" => "BRIDGED", "session" => id })
+          pump_bridge(id, relay, tcp)
+        end
+
+        # Public addresses first; LAN addresses as fallback. A connect to
+        # an address the target itself published is an ordinary dial, not a
+        # probe — it either connects or this returns nil (NOROUTE).
+        def relay_addr_for(target, peers)
+          candidates = []
+          peers.follows.each do |pub, entry|
+            next unless pub.to_s.downcase == target.downcase
+
+            candidates.concat(Array(entry.is_a?(Hash) ? entry["addrs"] : []).map(&:to_s))
+          end
+          candidates.sort_by { |addr| Net::Endpoint.lan_only?(addr) ? 1 : 0 }.each do |addr|
+            return addr unless addr.empty?
+          end
+          nil
+        end
+
+        # Pump framed TLS bytes between the caller (BYTES messages on the
+        # control connection) and the target (raw TCP) — or, in control mode,
+        # between two paired control connections (open rendezvous). Either
+        # side closing or the cap/lifetime expiring ends the session.
+        def pump_bridge(id, relay, tcp, control: false, leg: nil)
+          require "base64"
+          if control
+            pump_paired(id, relay, leg || "join")
+            return
+          end
+          loop do
+            message = read_line
+            break if message.nil?
+
+            entry = relay.fetch(id)
+            break if entry.nil?
+            if !message.is_a?(Hash) || message["session"].to_s != id
+              next if message.is_a?(Hash) && message["type"] == "BYE"
+              next
+            end
+            if message["type"] == "HANGUP" || message["type"] == "BYE"
+              break
+            end
+            next unless message["type"] == "BYTES"
+
+            begin
+              blob = Base64.strict_decode64(message["blob"].to_s)
+            rescue ArgumentError
+              break
+            end
+            begin
+              relay.account(id, blob.bytesize)
+            rescue Error
+              break
+            end
+            begin
+              tcp.write(blob) unless blob.empty?
+            rescue StandardError
+              break
+            end
+            reply = read_available(tcp)
+            begin
+              relay.account(id, reply.bytesize)
+            rescue Error
+              break
+            end
+            send_line({ "type" => "BYTES", "session" => id, "blob" => Base64.strict_encode64(reply) })
+          end
+        rescue Error
+          nil
+        ensure
+          relay.drop(id)
+          tcp&.close rescue nil
+        end
+
+        # One leg of a paired rendezvous session: frames read here shuttle
+        # to the other leg's inbox; frames arriving there send back down.
+        # Two threads (reader + writer) because TLS is full-duplex.
+        def pump_paired(id, relay, leg)
+          writer = Thread.new do
+            loop do
+              message = read_line
+              break if message.nil?
+              break if relay.fetch(id).nil?
+              next unless message.is_a?(Hash) && message["session"].to_s == id
+              break if message["type"] == "HANGUP" || message["type"] == "BYE"
+              next unless message["type"] == "BYTES"
+
+              blob = begin
+                Base64.strict_decode64(message["blob"].to_s)
+              rescue ArgumentError
+                break
+              end
+              break if relay.shuttle(id, leg, blob).nil?
+            end
+          end
+          loop do
+            break if relay.fetch(id).nil?
+
+            blob = relay.take(id, leg, 1)
+            if blob.nil?
+              next unless relay.fetch(id).nil?
+
+              break
+            end
+            begin
+              send_line({ "type" => "BYTES", "session" => id, "blob" => Base64.strict_encode64(blob) })
+            rescue StandardError
+              break
+            end
+          end
+          writer.kill
+        rescue StandardError
+          nil
+        ensure
+          writer&.kill
+          relay.drop(id)
+        end
+
+        def read_available(io)
+          reply = +"".b
+          deadline = Time.now + READ_TIMEOUT
+          loop do
+            left = deadline - Time.now
+            break if left <= 0
+
+            ready, = IO.select([ io ], nil, nil, [ left, 0.2 ].min)
+            break if ready.nil?
+
+            begin
+              chunk = io.read_nonblock(16_384)
+              break if chunk.nil? || chunk.empty?
+
+              reply << chunk
+            rescue IO::WaitReadable
+              break
+            rescue StandardError
+              break
+            end
+            break if reply.bytesize >= 16_384
+          end
+          reply
+        end
+
+        # Open rendezvous: the caller waits for a stranger holding the
+        # ticket. No target, no pin, no prior contact — the relay only ever
+        # shuttles BYTES frames between two control connections that both
+        # dialled out to it. The end-to-end TLS handshake runs *inside* those
+        # frames (same as the friend bridge), so the relay holds no keys.
+        def serve_alloc(relay)
+          unless relay&.open?
+            send_line({ "type" => "NOROUTE" })
+            return
+          end
+          waiter = nil
+          begin
+            waiter = relay.alloc_waiter
+          rescue Error
+            send_line({ "type" => "NOROUTE" })
+            return
+          end
+          send_line({ "type" => "ALLOCATED", "secret" => waiter[:secret] })
+          # Park: the JOIN leg pairs us (see serve_join) and wakes this with
+          # a PAIRED notice; expiry or HANGUP ends the wait.
+          paired = relay.await_pair(waiter[:secret], Net::Relay::TICKET_LIFETIME) do
+            message = read_line
+            break :hungup if message.nil?
+            break :hungup if message.is_a?(Hash) && message["type"] == "HANGUP"
+          end
+          if paired.is_a?(Hash) && paired[:session]
+            send_line({ "type" => "PAIRED", "session" => paired[:session] })
+            pump_bridge(paired[:session], relay, nil, control: true, leg: waiter[:secret])
+          end
+        rescue StandardError
+          nil
+        end
+
+        # The second stranger claims the ticket: pair the two control
+        # connections under one session id; both sides then speak BYTES and
+        # the relay shuttles frames between them.
+        def serve_join(message, relay)
+          unless relay&.open?
+            send_line({ "type" => "NOROUTE" })
+            return
+          end
+          id = relay.pair(message["secret"].to_s)
+          if id.nil?
+            send_line({ "type" => "NOROUTE" })
+            return
+          end
+          send_line({ "type" => "JOINED", "session" => id })
+          pump_bridge(id, relay, nil, control: true)
+        end
+
+        # A BYTES/HANGUP arriving on a connection with no live bridge (the
+        # caller's leg died, or this node never consented): refuse, don't pump.
+        def serve_relayed(message, relay)
+          if message["type"] == "HANGUP"
+            relay&.drop(message["session"].to_s)
+            send_line({ "type" => "BYE" })
+            return
+          end
+          send_line({ "type" => "NOROUTE" })
+        end
 
         def check_budget!(records, bytes)
           @records_moved += records
@@ -439,44 +759,17 @@ module RiceSpace
             others_bytes += bytes.bytesize
           end
         end
-
-        def send_line(object)
-          @socket.write("#{JSON.generate(object)}\n")
-        end
-
-        def read_line
-          line = nil
-          Timeout.timeout(READ_TIMEOUT) do
-            # Byte-wise to the newline with a hard cap: SSLSocket#gets takes
-            # no limit argument, and an uncapped line is the DoS.
-            buffer = +""
-            loop do
-              char = @socket.read(1)
-              break if char.nil?
-              buffer << char
-              raise Error, "the peer sent a line too long" if buffer.bytesize > MAX_LINE
-              break if char == "\n"
-            end
-            line = buffer.empty? ? nil : buffer
-          end
-          return nil if line.nil?
-
-          JSON.parse(line)
-        rescue JSON::ParserError
-          raise Error, "the peer spoke nonsense"
-        rescue Timeout::Error
-          raise Error, "the peer went quiet"
-        end
       end
 
       class Server
-        def initialize(port:, identity:, peers:, private_hex:, store_root: Feed.root, lan: true)
+        def initialize(port:, identity:, peers:, private_hex:, store_root: Feed.root, lan: true, relay: nil)
           @port = port.to_i
           @identity = identity
           @peers = peers
           @private_hex = private_hex
           @store_root = store_root
           @lan = lan
+          @relay = relay
           @slots = SizedQueue.new(MAX_CONNECTIONS)
           MAX_CONNECTIONS.times { @slots << true }
           @dials = Hash.new { |hash, key| hash[key] = [] }
@@ -520,7 +813,7 @@ module RiceSpace
                     follows: follows)
                   session.say_hello
                   session.read_hello
-                  session.serve_loop(peers: @peers, store_root: @store_root)
+                  session.serve_loop(peers: @peers, store_root: @store_root, relay: @relay)
                 rescue StandardError
                   nil
                 ensure
