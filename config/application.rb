@@ -16,6 +16,13 @@ module Ricespace
     # Common ones are `templates`, `generators`, or `middleware`, for example.
     config.autoload_lib(ignore: %w[assets tasks])
 
+    # The P2P core lives once, in the CLI tree, and ships inside the gem — so
+    # the app requires it from there rather than carrying a second copy. One
+    # implementation of verify, loaded in both.
+    cli_lib = Rails.root.join("cli", "lib")
+    config.eager_load_paths << cli_lib
+    $LOAD_PATH.unshift(cli_lib.to_s) unless $LOAD_PATH.include?(cli_lib.to_s)
+
     # Configuration for the application, engines, and railties goes here.
     #
     # These settings can be overridden in specific environments using the files

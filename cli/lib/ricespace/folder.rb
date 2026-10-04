@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "fileutils"
 require "json"
 require "pathname"
 
@@ -22,6 +23,11 @@ module RiceSpace
     MANIFEST = "ricespace.toml"
     PAGE = "page.html"
     RICE = "rice.json"
+    # The signed envelope: written by `folder sign`, checked by `folder verify`.
+    # A folder with one is a portable page — the same bytes render the same on
+    # any machine, because the hashes say what the files were and the signature
+    # says who wrote them.
+    ENVELOPE = "manifest.json"
 
     # The lists, in the API's own shape. Each is one file, because each is one list.
     LISTS = {
@@ -228,6 +234,187 @@ module RiceSpace
       write_sidecar(space.page) unless done.empty?
 
       done
+    end
+
+    # The folder's own files, hashed. The envelope names exactly what `sign`
+    # saw: the page, the rice, every list present, and every asset by content.
+    # `ricespace.toml` and the sidecar are the folder's bookkeeping, not the
+    # page, so they are not in it — and neither is the envelope itself.
+    def digest
+      files = {}
+      files[PAGE] = P2p::Canonical.file_digest(root.join(PAGE))
+
+      rice_file = root.join(RICE)
+      files[RICE] = P2p::Canonical.file_digest(rice_file) if rice_file.file?
+
+      LISTS.each do |_key, filename|
+        file = root.join(filename)
+        files[filename] = P2p::Canonical.file_digest(file) if file.file?
+      end
+
+      assets.each do |path|
+        files["#{ASSETS}/#{File.basename(path.to_s)}"] = P2p::Canonical.file_digest(path)
+      end
+
+      files
+    end
+
+    # Seal the folder: hash its files and sign a `page` record into the local
+    # feed. The files stay where they are; the signature lives in the feed, and
+    # a copy rides in `manifest.json` so the folder carries its own proof.
+    def sign(feed:, private_hex:, device_public:)
+      record = P2p::Record.build(
+        author: feed.author, signer: device_public,
+        seq: feed.next_seq, prev: feed.prev_hash,
+        kind: "page", body: { "document" => page, "files" => digest },
+        sign_with: private_hex
+      )
+      feed.append(record)
+      root.join(ENVELOPE).write(JSON.pretty_generate(signed_envelope(record)) + "\n")
+      record
+    end
+
+    # Seal everything, for replicating peers: the page plus the rice, the
+    # lists and the asset manifest as their own records, so a node holding the
+    # feed can render the page without the folder's files. Bodies are
+    # self-contained — facts and entries inline, pictures by content hash with
+    # bytes fetched separately. Returns all appended records, page first.
+    def sign_all(feed:, private_hex:, device_public:)
+      bodies = subscribing_bodies
+      records = bodies.map do |kind, body|
+        record = P2p::Record.build(
+          author: feed.author, signer: device_public,
+          seq: feed.next_seq, prev: feed.prev_hash,
+          kind: kind, body: body, sign_with: private_hex
+        )
+        feed.append(record)
+        record
+      end
+      envelope = records.first.merge(
+        "records" => records.to_h { |record| [ record["kind"], P2p::Record.hash_of(record) ] }
+      )
+      root.join(ENVELOPE).write(JSON.pretty_generate(envelope) + "\n")
+      records
+    end
+
+    # The bodies a remote node renders from: page (the document + file hashes),
+    # rice (facts inline + shots as content hashes), lists (entries inline,
+    # friends as peer keys), assets (pictures as content hashes).
+    def subscribing_bodies
+      bodies = [
+        [ "page", { "document" => page, "files" => digest } ],
+        [ "rice", rice_body ],
+        [ "lists", lists_body ]
+      ]
+      asset_entries = asset_manifest
+      bodies << [ "assets", { "files" => asset_entries } ] unless asset_entries.empty?
+      bodies
+    end
+
+    def rice_body
+      facts = rice.is_a?(Hash) ? rice : {}
+      shots = Array(facts["shots"]).filter_map do |shot|
+        next unless shot.is_a?(Hash)
+
+        url = shot["url"].to_s
+        name = self.class.asset_name(url)
+        file = name ? root.join(ASSETS, name) : nil
+        entry = { "caption" => shot["caption"].to_s }
+        entry["sha256"] = P2p::Canonical.file_digest(file) if file&.file?
+        entry
+      end
+      {
+        "title" => facts["title"].to_s, "summary" => facts["summary"].to_s,
+        "details" => facts["details"].to_s,
+        "facts" => facts.reject { |key, _| %w[title summary details shots].include?(key.to_s) },
+        "shots" => shots
+      }
+    end
+
+    def lists_body
+      lists.each_with_object({}) do |(key, value), acc|
+        acc[key.to_s] = Array(value).map do |entry|
+          entry.is_a?(Hash) ? comparable_entry(entry) : entry
+        end
+      end
+    end
+
+    def asset_manifest
+      assets.filter_map do |path|
+        name = File.basename(path.to_s)
+        { "name" => name, "sha256" => P2p::Canonical.file_digest(path),
+          "kind" => "shot", "bytes" => path.size }
+      end
+    end
+
+    # The editable fields of a list entry: derived keys (urls, ids, ordering)
+    # stay with the site that derived them.
+    def comparable_entry(entry)
+      entry.reject { |field, _| DERIVED.include?(field.to_s) }
+    end
+
+    # What the folder claims about itself: its envelope, or nothing.
+    def signed_envelope(record = nil)
+      record ||= begin
+        file = root.join(ENVELOPE)
+        return nil unless file.file?
+
+        JSON.parse(file.read)
+      rescue JSON::ParserError
+        raise UsageError, "#{ENVELOPE} is not JSON"
+      end
+
+      record.is_a?(Hash) ? record.transform_keys(&:to_s) : nil
+    end
+
+    # Check the folder against its envelope: every named file still hashes the
+    # same, and the signature verifies. Returns the record on success.
+    # A `sign_all` envelope carries `records` beside the page record — the extra
+    # key is the manifest of the other sealed records, not part of the record.
+    def verify!
+      envelope = signed_envelope
+      raise UsageError, "no #{ENVELOPE} here — sign the folder first" if envelope.nil?
+
+      record = P2p::Record.from_hash(envelope.reject { |key, _| key == "records" })
+      raise UsageError, "the envelope is not a page record" unless record["kind"] == "page"
+
+      unless P2p::Record.signature_valid?(record)
+        raise UsageError, "the signature does not verify — this folder is not who it claims"
+      end
+
+      expected = record.dig("body", "files") || {}
+      actual = digest
+      missing = expected.keys - actual.keys
+      changed = expected.keys.select { |name| actual.key?(name) && actual[name] != expected[name] }
+      unless missing.empty? && changed.empty?
+        details = (missing.map { |name| "missing #{name}" } + changed.map { |name| "#{name} changed" })
+        raise UsageError, "the folder changed since it was signed: #{details.join(", ")}"
+      end
+
+      record
+    end
+
+    # A static copy of the folder any dumb HTTP server can host: the page, its
+    # lists, its assets, and the envelope that proves them. This is the
+    # sneakernet transport — a USB stick that carries a page.
+    def export_to(target)
+      target = Pathname.new(target.to_s)
+      target.mkpath
+
+      names = [ PAGE, RICE, ENVELOPE ] + LISTS.values
+      names.each do |name|
+        file = root.join(name)
+        FileUtils.cp(file, target.join(name)) if file.file?
+      end
+
+      from = root.join(ASSETS)
+      if from.directory?
+        to = target.join(ASSETS)
+        to.mkpath
+        from.children.select(&:file?).each { |child| FileUtils.cp(child, to.join(child.basename)) }
+      end
+
+      target
     end
 
     # Stage the folder where the running site can read it, so the site's own renderer can

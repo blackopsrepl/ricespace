@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_03_210002) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_04_000002) do
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -134,6 +134,35 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_210002) do
     t.index ["user_id"], name: "index_friendships_on_user_id"
   end
 
+  create_table "peer_records", force: :cascade do |t|
+    t.string "author_pubkey", null: false
+    t.integer "seq", null: false
+    t.string "kind", null: false
+    t.text "body_json", default: "{}", null: false
+    t.string "signer"
+    t.string "signature"
+    t.string "record_hash"
+    t.string "prev_hash"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["author_pubkey", "kind"], name: "index_peer_records_on_author_pubkey_and_kind"
+    t.index ["author_pubkey", "seq"], name: "index_peer_records_on_author_pubkey_and_seq", unique: true
+  end
+
+  create_table "peers", force: :cascade do |t|
+    t.string "pubkey", null: false
+    t.string "petname"
+    t.boolean "followed", default: true, null: false
+    t.boolean "self_feed", default: false, null: false
+    t.integer "latest_seq", default: 0, null: false
+    t.string "latest_hash"
+    t.boolean "compromised", default: false, null: false
+    t.boolean "deleted", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["pubkey"], name: "index_peers_on_pubkey", unique: true
+  end
+
   create_table "profile_pictures", force: :cascade do |t|
     t.integer "user_id", null: false
     t.datetime "created_at", null: false
@@ -216,7 +245,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_03_210002) do
     t.string "mood"
     t.boolean "admin", default: false, null: false
     t.datetime "last_seen_at"
+    t.string "pubkey"
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
+    t.index ["pubkey"], name: "index_users_on_pubkey", unique: true
     t.index ["username"], name: "index_users_on_username", unique: true
   end
 
