@@ -7,6 +7,32 @@ no relays, no DHT.
 This document is the reference. The [README](../README.md#your-page-without-a-server)
 is the user-facing walkthrough; what follows is exact enough to reimplement from.
 
+## Rails replica index and account pairing
+
+The transport stores records on disk without depending on Rails. Before each
+browser/API request, Rails imports only its explicitly followed feeds into SQLite.
+It binds each record's author to the feed directory, verifies the chain, imports
+idempotently under a transaction and preserves fork/tombstone state. A quarantined
+or unknown directory cannot create a follow. CLI and Rails must share `RICESPACE_STORE`.
+This is request-driven refresh, not an idle background polling guarantee.
+
+Pairing requires a current-master signature of a session-owned
+`ricespace-link-v1:<origin>:<user-id>:<node-device>:<nonce>` challenge and a valid
+unrevoked authorization of the node device. Challenges expire after ten minutes
+and are consumed on submission. `identity prove` signs only this challenge format.
+Legacy public-key-only links cannot authorize writes or hydrate until re-proven.
+
+The editor restores supported textual state only if it is pristine or matches the
+last synchronized local snapshot. Divergent drafts are retained and reported;
+verified replica updates remain readable independently. Local-only attachments,
+account credentials, songs and friendships are not reconstructed. SQLite peer
+records are rebuildable; the entire application's database is not disposable.
+
+`peer address` checks the advertised listener's TLS device key and prints an exact
+share command. The `--device` pin carries an explicit out-of-band first-contact
+binding; verified feed history becomes authoritative after records are received.
+Checking from the same machine does not prove internet ingress through NAT/firewalls.
+
 ## Why this shape
 
 Each page has one writer. Ordering is the writer's sequence number plus the

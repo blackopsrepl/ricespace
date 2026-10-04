@@ -197,10 +197,11 @@ In a second terminal, leave the peer running:
 ricespace peer serve
 ```
 
-Give a friend your full public key and reachable address. On their machine:
+In the second terminal, run `ricespace peer address` and send its full printed
+command to a friend on the same LAN. It contains your feed key, checked address,
+and device pin. Your friend pastes that command, then runs:
 
 ```sh
-ricespace peer add <your-full-master-public-key> friend --at <your-host>:7676
 ricespace peer sync friend
 ricespace peer list
 ```
@@ -239,9 +240,9 @@ delivery story: friends carry copies.
 
 The two halves meet wherever you want them to. A node operator runs the site as usual and it
 is one peer among others: replicated pages render at `/peers` beside local ones, ranked the
-same way, reacted to and written on with the node signing as you. Linking is one paste in
-the studio — your master key from `identity show` — plus authorising the node's device key
-from the machine holding your master. The README's [operator section](#running-a-node)
+same way, reacted to and written on with the node signing as you. Linking requires
+proving ownership with a master-signed studio challenge and authorising the node's
+device key from the machine holding your master. The README's [operator section](#running-a-node)
 walks through it; [`docs/p2p-spec.md`](docs/p2p-spec.md) states the protocol underneath.
 
 ## Who runs the place
@@ -431,11 +432,51 @@ comments on them with the node signing as its device. Three steps:
    Put the secret in a file only the service user can read (mode 0600) and point the
    service at it with `RICESPACE_NODE_SECRET_FILE`. The public half is shown on the
    node's `/peers` page for feed owners to authorise.
-2. **Link the account.** In the studio, under *Your feed on the network*, paste the master
-   key from `ricespace identity show`. The studio says whether the node may sign yet.
-3. **Authorise the node, from the machine holding the master.**
-   `ricespace identity device-add <the node's public key>` — master-signed, synced on the
-   next import. From then on this node's saves publish into your feed and its reaction
-   buttons sign as you. Revoke the same way if the node ever stops being yours.
+2. **Authorise the node, from the machine holding the master.**
+   `ricespace identity device-add <the node's public key>` creates its authorization.
+   Sync that signed history to the node's feed store before linking.
+3. **Prove and link the account.** Open the studio's *Your feed on the network* section.
+   Copy its challenge and run `ricespace identity prove '<challenge>'` on the master
+   machine. Paste the printed signature and your full feed public key into the studio.
+   The proof is session-bound, single-use and expires after ten minutes. A public key
+   alone cannot claim a feed. Existing key-only links must prove ownership again.
+
+### Automatic database refresh
+
+Set **the same `RICESPACE_STORE` directory for Rails and the CLI**, readable by the
+Rails service user. The CLI remains independent of Rails: it writes signed files.
+On the next browser/API request, Rails imports updates into SQLite automatically;
+no manual import click or additional background daemon is needed. When Rails is idle,
+SQLite is not polled. Explicitly follow a feed on `/peers` to allow its import;
+unknown directories and transport quarantine never become automatic follows.
+
+Proven linking immediately imports your existing verified feed and restores a clean
+studio's page and supported textual rice/list fields. Later signed updates refresh
+the editor before the request is served. If the local editor differs from its last
+synchronized snapshot, your draft stays intact and the studio reports the conflict.
+The replicated version remains readable on `/peers`; saving your draft publishes it
+when the node is authorized. Revocation, a tombstone or a fork stops editor hydration.
+Local pictures, song, friendships and account details are retained, not erased or
+claimed to be reconstructed from textual feed records.
+
+SQLite's peer-record tables are a verified replica index. Accounts, credentials,
+uploads and unsynced drafts still require normal database/storage backups. Do not
+wipe the whole database expecting every part of the website to reappear from feeds.
+
+### Sharing an address without guessing
+
+Leave `ricespace peer serve` running, then run this in a second terminal:
+
+```sh
+ricespace peer address
+```
+
+It checks that the server answers with your device key, then prints the exact
+`peer add` command your friend can paste, including the first-contact `--device`
+pin. Exchange the entire command over a trusted channel. A LAN address is labelled
+**same LAN**, not advertised as internet-reachable. Use `--host your-hostname --port 7676`
+for another endpoint; an on-machine probe cannot prove outside reachability through
+NAT or a firewall. Closed ports and wrong device keys fail rather than printing a
+working-address claim. IPv6 share endpoints are currently refused explicitly.
 
 [`ROADMAP.md`](ROADMAP.md) says what is next, and what is deliberately not being built.
