@@ -163,11 +163,13 @@ cli-test:
 
 install: cli
 	@printf -- "$(CYAN)$(ARROW)$(RESET) installing the gem\n"
-	@cd cli && gem build ricespace.gemspec --quiet 2>/dev/null && \
-		gem install --quiet --user-install ./ricespace-*.gem 2>&1 | tail -2 && \
-		rm -f ./ricespace-*.gem || \
-		{ printf -- "$(YELLOW)could not install the gem — run it as $(AMBER)$(CLI)$(RESET)\n"; }
-	@printf -- "$(GREEN)$(CHECK)$(RESET) $(AMBER)ricespace$(RESET) is installed\n"
+	@mkdir -p "$(HOME)/.local/bin"
+	@cd cli && gem build ricespace.gemspec --quiet --output ricespace-install.gem && \
+		gem install --user-install --no-document --no-format-executable \
+		--bindir "$(HOME)/.local/bin" ./ricespace-install.gem && \
+		rm -f ./ricespace-install.gem
+	@"$(HOME)/.local/bin/ricespace" --version
+	@printf -- "$(GREEN)$(CHECK)$(RESET) installed at $(HOME)/.local/bin/ricespace — add ~/.local/bin to PATH\n"
 	@$(MAKE) --no-print-directory completions-install
 
 # The completion files a shell reads on its own, written where each one already looks so
