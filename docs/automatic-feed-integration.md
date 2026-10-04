@@ -1,0 +1,9 @@
+# 0.5.0 automatic feed integration plan
+
+1. Add a request-owned refresh boundary to Rails: before rendering or writing, import only explicitly followed feeds from the shared disk store. No watcher thread, extra server, Rails dependency in the CLI, or manual import requirement. Idle Rails does not poll; the next request refreshes SQLite.
+2. Require a short-lived, session/account/node-bound challenge signed by the feed's current master, plus a valid live authorization of this node device, before linking or hydrating. A pasted public key is never ownership proof. Legacy links must re-prove ownership.
+3. Import transactionally and idempotently, binding each record to its directory key and validating the signature/chain. Keep fork and tombstone state; unknown/unfollowed/quarantined feeds never acquire follows or visibility. Isolate per-feed disk/validation failures and retry on the next request.
+4. Hydrate signed page and supported textual rice/list editor state only after authorization. Track the last synchronized local snapshot. Preserve divergent local edits, report a conflict, and keep importing the replica rather than silently overwriting drafts. Local-only media, friendships, song and account details stay local. Successful signed browser publication advances the snapshot.
+5. Prove linking, automatic refresh, conflict preservation, revocation, tombstones, forks, untrusted feeds and retry behavior with tests, then run `make check`, verify real HTTP, document the actual flow, bump 0.5.0 and push one annotated tag. Read back exact remote SHAs, CI and the published gem.
+
+SQLite's peer records are a rebuildable replica index; accounts, credentials, media and unsynced drafts are not disposable. CLI and Rails must point at the same `RICESPACE_STORE`. Explicit Rails follows define the automatic import allowlist; CLI follows alone do not grant Rails display permission.
