@@ -43,7 +43,7 @@ define BANNER
 endef
 
 .PHONY: help banner setup serve dev console check test lint audit ci routes db db-migrate db-seed \
-        rice db-reset cli cli-test install completions url clean
+        rice db-reset cli cli-test install update completions url clean
 
 # ============== Default ==============
 .DEFAULT_GOAL := help
@@ -66,7 +66,8 @@ help:
 	@printf -- "  $(AMBER)the CLI$(RESET)\n"
 	@printf -- "    $(BOLD)make cli$(RESET)          $(DIM)run the client — no build step, it is Ruby$(RESET)\n"
 	@printf -- "    $(BOLD)make cli-test$(RESET)     $(DIM)its tests$(RESET)\n"
-	@printf -- "    $(BOLD)make install$(RESET)      $(DIM)put it on your PATH, then write completions$(RESET)\n\n"
+	@printf -- "    $(BOLD)make install$(RESET)      $(DIM)put it on your PATH, then write completions$(RESET)\n"
+	@printf -- "    $(BOLD)make update$(RESET)       $(DIM)fast-forward this checkout, then reinstall the CLI$(RESET)\n\n"
 	@printf -- "  $(AMBER)a folder that is your space$(RESET)\n"
 	@printf -- "    $(BOLD)ricespace folder clone$(RESET)   $(DIM)write your page out as files$(RESET)\n"
 	@printf -- "    $(BOLD)ricespace folder preview$(RESET) $(DIM)draw the folder, with the site's own cleaner$(RESET)\n"
@@ -171,6 +172,14 @@ install: cli
 	@"$(HOME)/.local/bin/ricespace" --version
 	@printf -- "$(GREEN)$(CHECK)$(RESET) installed at $(HOME)/.local/bin/ricespace — add ~/.local/bin to PATH\n"
 	@$(MAKE) --no-print-directory completions-install
+
+# Update only from a clean checkout. Fast-forward-only refuses divergent history; if pulling
+# fails, make stops before installing so the currently installed CLI remains untouched.
+update:
+	@command -v git >/dev/null 2>&1 || { printf -- "$(RED)git is required to update$(RESET)\n"; exit 1; }
+	@git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { printf -- "$(RED)run make update from a git checkout$(RESET)\n"; exit 1; }
+	@test -z "$$(git status --porcelain)" || { printf -- "$(RED)checkout has local changes; commit or stash them before updating$(RESET)\n"; exit 1; }
+	@git pull --ff-only && make --no-print-directory install
 
 # The completion files a shell reads on its own, written where each one already looks so
 # nobody has to source anything. Generated from the client rather than written by hand, so
