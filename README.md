@@ -115,9 +115,12 @@ export PATH="$HOME/.local/bin:$PATH"
 ricespace --version
 ```
 
-**Update:** `git pull --ff-only && make install` from the checkout, or install the
-new release gem with the same command. Your identity and feeds are outside the
-checkout and are not replaced. After changing Ruby versions, reinstall the gem.
+**Update:** run `make update` from the checkout. It refuses to run with local
+changes and uses `git pull --ff-only`, then reinstalls the CLI only if the pull
+succeeds. This avoids overwriting checkout edits or merging divergent history.
+Your identity and feeds are outside the checkout and are not replaced. After
+changing Ruby versions, reinstall the gem with `make install`. Without a checkout,
+install the new release gem using the command above.
 **Uninstall:** `gem uninstall ricespace`; this does not delete your account or feeds.
 You can also run `cli/exe/ricespace --help` directly without installing anything.
 
